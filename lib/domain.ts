@@ -1,3 +1,4 @@
+import {productInputSchema,productErrors} from './products';
 import Decimal from 'decimal.js';
 import {z} from 'zod';
 import {parseScan} from './scanner';
@@ -6,7 +7,8 @@ const text=z.string().trim().min(1).max(160), id=z.string().min(1).max(100);
 const qty=z.string().regex(/^\d{1,9}(\.\d{1,3})?$/).refine(v=>new Decimal(v).gt(0),'La cantidad debe ser positiva.');
 const profileSchema=z.object({id,name:text,version:z.number().int().positive(),prefix:z.string().max(30),suffix:z.string().max(30),terminator:z.enum(['Enter','Tab']),parser:z.enum(['plain','gs1','delimited']),delimiter:z.string().max(4),codePosition:z.number().int().min(0).max(10),lotPosition:z.number().int().min(-1).max(10),serialPosition:z.number().int().min(-1).max(10),quantity:qty,state:z.enum(['draft','validated'])});
 export const commandSchema=z.discriminatedUnion('type',[
- z.object({type:z.literal('createProduct'),name:text,sku:text,code:z.string().min(1).max(100),unit:z.enum(['ud']),tracking:z.enum(['none','lot','serial']),packCode:z.string().max(100).optional(),packQuantity:qty.optional()}),
+ productInputSchema.extend({type:z.literal('createProduct')}),
+ z.object({type:z.literal('importProducts'),products:z.array(productInputSchema).min(1).max(1000)}),
  z.object({type:z.literal('scan'),receiptId:id,raw:z.string().min(1).max(512),profileId:id,lot:z.string().max(40).optional(),serial:z.string().max(40).optional(),allowExcess:z.boolean().optional(),reason:z.string().max(400).optional()}),
  z.object({type:z.literal('undo'),receiptId:id}),
  z.object({type:z.literal('confirm'),receiptId:id,reason:z.string().max(400).optional()}),
@@ -48,7 +50,8 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
  const openReceipt=(rid:string)=>{const r=receipt(rid);if(r.status!=='open')throw new DomainError('Esta recepción ya está cerrada.',409);return r;};
  let message='';
  switch(c.type){
- case 'createProduct':{if(s.products.some(p=>p.sku===c.sku||p.code===c.code||p.packCode===c.code||(c.packCode&&(p.code===c.packCode||p.packCode===c.packCode))))throw new DomainError('Referencia o código ya registrado.');if(c.packCode&&!c.packQuantity)throw new DomainError('Indica las unidades del embalaje.');s.products.push({id:commandId,name:c.name,sku:c.sku,code:c.code,unit:c.unit,tracking:c.tracking,packCode:c.packCode,packQuantity:c.packQuantity});message='Producto registrado · '+c.name;break;}
+ case 'createProduct':{const errors=productErrors([c],s.products);if(errors.length)throw new DomainError(errors[0]);s.products.push({...c,id:commandId});message='Producto registrado · '+c.name;break;}
+ case 'importProducts':{const errors=productErrors(c.products,s.products);if(errors.length)throw new DomainError(errors.slice(0,5).join(' '));s.products.push(...c.products.map((p,i)=>({...p,id:commandId+'-'+i})));message='Importación Excel · '+c.products.length+' productos creados';break;}
  case 'scan':{
   const r=openReceipt(c.receiptId),p=s.profiles.find(x=>x.id===c.profileId);if(!p)throw new DomainError('Selecciona un perfil de lector.');
   if(p.state!=='validated')throw new DomainError('Prueba y activa el perfil del lector antes de recibir.');

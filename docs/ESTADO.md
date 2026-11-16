@@ -40,3 +40,13 @@ Validar fotos y PDFs representativos, corregir UI con navegador habilitado, veri
 Añadido scripts/smoke-private.mjs para repetir las comprobaciones básicas con SMOKE_USERNAME y SMOKE_PASSWORD en entorno, sin guardar ni imprimir credenciales. Ejecutar: node scripts/smoke-private.mjs. Sintaxis comprobada; la ejecución documentada anterior se hizo con cliente HTTP Python equivalente y añadió la prueba de original.
 
 Bloqueos para validación real: muestras representativas de albaranes/facturas y etiquetas, acceso a navegador de pruebas/PDA física, buzón inicial y autorización de carpeta Drive. La repetición automática se pausa mientras falten estos elementos; el prototipo no se declara producto terminado.
+
+
+## 2026-11-16 — Importación masiva Excel
+- Añadir producto: alta manual o Importar Excel. Plantilla XLSX vacía con instrucciones, códigos como texto y listas de unidad/seguimiento.
+- Hasta 1000 productos / 2 MB, vista previa y confirmación. Solo crea; no sobrescribe existentes.
+- Valida obligatorios, duplicados, embalajes, fórmulas y códigos numéricos. Errores con fila de Excel.
+- Comando atómico e idempotente, con control de versión y transacción PostgreSQL existente; también disponible en demo.
+- 38 tests y build correctos; plantilla renderizada y leída por el parser de la app. No se añadieron productos ficticios en producción.
+- Normalizados prefijos OOXML del exportador para compatibilidad con ExcelJS.
+- Pendiente prueba visual interactiva/PDA real: Chromium no arranca en este entorno. Despliegue a verificar tras publicación.
