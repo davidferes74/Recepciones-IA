@@ -13,8 +13,8 @@
 
 ## Verificación
 
-- 30 pruebas aprobadas: 29 de dominio y una de sesión malformada/firma manipulada.
-- Compilación de producción aprobada el 16/11/2026.
+- 29 pruebas de dominio aprobadas al retomar; añadida prueba de sesión malformada y firma manipulada.
+- Build previamente aprobado; nueva ejecución registrada durante entrega.
 - E2E visual no ejecutado: Chromium aborta porque el entorno rechaza socket() (Operation not permitted). No se ha certificado PDA, cámara ni navegador físico.
 - Vercel: proyecto y Neon aportados por capturas del usuario. El conector sigue devolviendo 404 al consultar recepciones-ia en sentidino. No afirmar conexión real Neon hasta prueba autenticada.
 
@@ -33,3 +33,7 @@ No se comparan precios: siempre revisión de Administración. La conciliación H
 ## Siguiente paso
 
 Publicar y verificar build Vercel; configurar acceso privado en variables de servidor sin compartir secretos por chat. Probar flujo completo con navegador habilitado y Neon; después conectar OCR y archivo con muestras y credenciales autorizadas.
+
+## Despliegue comprobado · 16/11/2026
+
+Commit de aplicación 32eb5bbb4be148ced06a8dede09185f0e9481547 publicado en main. GitHub registra Vercel success. https://recepciones-ia.vercel.app devuelve HTTP 200; /api/health devuelve status ok, version 0.1.0; /api/workspace sin sesión devuelve 401. La página declara databaseConfigured=true y serverConfigured=false: DATABASE_URL está presente, pero falta completar APP_ACCESS_PASSWORD y/o SESSION_SECRET válido. No se ha probado aún lectura/escritura autenticada en Neon. La demo puede usarse con datos sintéticos. Bloqueo siguiente: configuración segura de acceso del piloto y habilitar acceso del conector al proyecto Vercel.
