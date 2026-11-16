@@ -1,0 +1,12 @@
+export type Tracking = 'none'|'lot'|'serial';
+export type Product = {id:string; name:string; sku:string; code:string; unit:string; tracking:Tracking; packCode?:string; packQuantity?:string};
+export type Line = {id:string; productId:string; expected:string; received:string; lot?:string; price?:string};
+export type Receipt = {id:string; supplier:string; reference:string; date:string; status:'open'|'confirmed'|'exceptions'; tracking:boolean; lines:Line[]; createdAt:string; closedAt?:string; closeReason?:string; fileIds:string[]};
+export type Invoice = {id:string; supplier:string; reference:string; date:string; receiptRefs:string[]; lines:{id:string; productId:string; quantity:string; price?:string}[]};
+export type Scan = {id:string; receiptId:string; lineId:string; raw:string; quantity:string; lot?:string; serial?:string; profileId?:string; profileVersion?:number; reversed:boolean; at:string};
+export type Profile = {id:string; name:string; version:number; prefix:string; suffix:string; terminator:'Enter'|'Tab'; parser:'plain'|'gs1'|'delimited'; delimiter:string; codePosition:number; lotPosition:number; serialPosition:number; quantity:string; state:'draft'|'validated'; validatedDevice?:string; testedVersion?:number; testedCode?:string};
+export type Allocation = {invoiceId:string; invoiceLineId:string; receiptId:string; lineId:string; quantity:string};
+export type Audit = {id:string; at:string; action:string; message:string};
+export type Issue = {id:string;receiptId:string;message:string;at:string;resolved:boolean;resolution?:string};
+export type Workspace = {version:number; organization:string; tracking:boolean; products:Product[]; receipts:Receipt[]; invoices:Invoice[]; scans:Scan[]; profiles:Profile[]; allocations:Allocation[]; audit:Audit[]; issues:Issue[]; processed:string[]};
+export type ParsedCode = {code:string; lot?:string; serial?:string; expiry?:string};

@@ -1,0 +1,5 @@
+import pg from 'pg';
+import {readFile} from 'node:fs/promises';
+if(!process.env.DATABASE_URL){console.log('DATABASE_URL ausente: migración omitida, solo demostración.');process.exit(0);}
+const client=new pg.Client({connectionString:process.env.DATABASE_URL});
+await client.connect();try{await client.query(await readFile(new URL('../migrations/001_workspace.sql',import.meta.url),'utf8'));console.log('Migración 001 aplicada.');}finally{await client.end();}

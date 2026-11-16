@@ -1,8 +1,8 @@
 # Recepciones-IA
 
-Paquete de traspaso a Codex · Especificación v1.0 · 15 de noviembre de 2026
+Prototipo funcional H1 · 16 de noviembre de 2026
 
-**Estado: diseño funcional y técnico documentado; aplicación todavía no implementada ni desplegada.**
+**Estado: prototipo implementado; integraciones reales y validación del despliegue pendientes. Ver docs/ESTADO.md.**
 Este repositorio es la fuente de contexto para construir la app. No presupongas que dispones de la conversación original.
 
 ## Objetivo
@@ -35,5 +35,15 @@ Los requisitos explícitos del usuario prevalecen. Las propuestas técnicas se i
 ## Inicio
 
 Abrir este repositorio en Codex y pegar el contenido de CODEX_START.md.
-No hay aún package.json, servidor, pruebas ejecutables ni conexiones productivas. Codex debe implementarlos.
+Instalar con `npm ci`; iniciar con `npm run dev`. Validar con `npm test`, `npm run typecheck` y `npm run build`.
 No hay credenciales, fotos reales, facturas reales ni datos de proveedores en este paquete.
+
+## Vercel y Neon
+
+El proyecto incluye vercel.json con framework Next.js. La compilación ejecuta migraciones aditivas si existe DATABASE_URL. Sin ella permite probar la demo local.
+Configurar exclusivamente en Vercel: DATABASE_URL (aportada por Neon), APP_ACCESS_PASSWORD (contraseña del piloto), SESSION_SECRET (secreto aleatorio de al menos 32 caracteres), ORGANIZATION_ID opcional. No compartir valores por chat ni guardarlos en Git. Volver a desplegar tras cambiar variables.
+El acceso de piloto es de un administrador único. No introducir documentación real hasta completar permisos, controles de acceso y pruebas de persistencia. Preview y producción deben usar bases separadas.
+
+## Prueba de demostración
+
+Abrir Lectores y PDA, probar código 8412345678905 con ese mismo código esperado, indicar dispositivo y validar perfil. Abrir ALB-2026-0148: CAJA-ARROZ añade 12 unidades y cada 8423456789015 añade una unidad de aceite (6 esperadas). Confirmar recepción y abrir factura F-2026-0312: las cantidades se respaldan entre dos albaranes. Precio no comprobado. La demo se guarda solo en este navegador.

@@ -1,33 +1,35 @@
-# Estado del proyecto
+# Estado · 16/11/2026
 
-Fecha inicial: 15/11/2026.
-Este archivo debe actualizarse por Codex después de cada hito.
+## Implementado: prototipo H1, pendiente de validación visual y despliegue
 
-## Completado
+- Next.js/React/TypeScript, interfaz española móvil/tablet/escritorio.
+- Recepciones manuales, catálogo, cantidades físicas, incidencias, cierre motivado e histórico.
+- Perfiles de lector con pruebas aisladas, activación y versionado; parsers simple, delimitado y subconjunto GS1 (01/10/17/21).
+- Lotes y series opcionales; conversión de caja/unidad; deshacer y auditoría.
+- Conciliación decimal por referencia explícita/proveedor/producto, varias recepciones por factura, parcial y sin doble consumo.
+- Demo sintética persistida en IndexedDB. Fotos/PDF de demo quedan exclusivamente en este navegador, no en Drive ni Neon.
+- API privada PostgreSQL, bloqueo transaccional de espacio, versión e idempotencia. Migración incluida.
+- Sesión de administrador único para piloto; no equivale a roles multiusuario ni producto terminado.
 
-- Requisitos y contexto de conversación consolidados.
-- Diseño funcional, pantallas, PDA, lectura, conciliación, modelo de datos, integraciones y pruebas documentados.
-- Prompt de arranque y reglas del repositorio preparados.
-- Repositorio privado correcto y permisos de lectura/escritura comprobados.
+## Verificación
 
-## No implementado todavía
+- 30 pruebas aprobadas: 29 de dominio y una de sesión malformada/firma manipulada.
+- Compilación de producción aprobada el 16/11/2026.
+- E2E visual no ejecutado: Chromium aborta porque el entorno rechaza socket() (Operation not permitted). No se ha certificado PDA, cámara ni navegador físico.
+- Vercel: proyecto y Neon aportados por capturas del usuario. El conector sigue devolviendo 404 al consultar recepciones-ia en sentidino. No afirmar conexión real Neon hasta prueba autenticada.
 
-Frontend, API, DB, migraciones, autenticación, OCR/IA, plantillas ejecutables, motor de conciliación, correo, Drive, cola, escaneo físico y despliegue.
-Los tests del documento 07 son criterios de aceptación; no pruebas ejecutadas.
-No hay una app operativa ni datos reales dentro de este paquete.
+## Decisiones provisionales
 
-## Próxima acción
+PostgreSQL guarda el agregado de trabajo en JSONB y un registro de comandos, con bloqueo por organización. Adecuado para validar el flujo inicial; pendiente normalización, outbox y pruebas concurrentes reales antes de producción.
+Acceso mediante contraseña de piloto y cookie firmada de 8 horas; pendiente proveedor de identidad, roles, limitación distribuida de intentos y recuperación. Usar solo con datos sintéticos hasta completar seguridad y pruebas.
+Sin DATABASE_URL o credenciales de acceso completas se muestra demo explícita. No hay fallback silencioso de datos privados a demo.
 
-Ejecutar H0 y H1 siguiendo CODEX_START.md y docs/08-plan.md. No bloquear H1 por muestras o credenciales que solo hagan falta en hitos posteriores.
+## Pendiente
 
-## Plantilla para actualizar
+OCR/IA, aprendizaje de plantillas, fotografía de etiquetas con extracción, Gmail/Dinahosting, Drive, cola durable, permisos multiusuario, devoluciones/correcciones, adjuntos de servidor y compatibilidad de cámara ampliada. No se realizan movimientos en ERP ni pagos.
+La cámara inicial usa BarcodeDetector si existe y requiere confirmación; otros navegadores necesitan lector físico o entrada manual.
+No se comparan precios: siempre revisión de Administración. La conciliación H1 compara cantidades; no verifica lotes/series contra facturas sin evidencia.
 
-- Commit/hito:
-- Funcionalidades implementadas:
-- Pruebas ejecutadas y resultado:
-- Integraciones reales:
-- Simulaciones explícitas:
-- Dispositivos físicos probados:
-- Accesos/datos pendientes:
-- Riesgos/limitaciones:
-- Siguiente paso:
+## Siguiente paso
+
+Publicar y verificar build Vercel; configurar acceso privado en variables de servidor sin compartir secretos por chat. Probar flujo completo con navegador habilitado y Neon; después conectar OCR y archivo con muestras y credenciales autorizadas.
