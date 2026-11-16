@@ -58,3 +58,10 @@ Bloqueos para validación real: muestras representativas de albaranes/facturas y
 - Migración 003; endpoint autenticado para futuro programador. No se ha activado captura automática ni Gmail OAuth.
 - 43 tests y build correctos. No prueba real de buzón: requiere TOKEN_ENCRYPTION_KEY y credenciales introducidas en la app. Navegador/PDA y concurrencia DB pendientes.
 - Procedimiento, límites y configuración: docs/10-correo.md.
+
+## 2026-11-16 — Gmail OAuth
+- Implementados inicio OAuth, callback con state de un solo uso ligado a sesión/organización, autorización gmail.readonly, identidad verificada por Gmail, tokens cifrados y renovación.
+- Configuración por etiquetas/fecha/filtros y captura manual Gmail con paginación, límites, lease y deduplicación; integrado con revisión existente. Migración aditiva 004.
+- UI elimina aviso «OAuth pendiente de implementar»: muestra configuración externa pendiente mientras falten GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET. No muestra buzón autorizado sin callback válido.
+- 48 pruebas y build correctos. Pendientes credenciales Google Cloud, autorización real del usuario y prueba end-to-end de buzón. Captura periódica y lectura IA automática siguen pendientes.
+- Instrucciones exactas del propietario: docs/11-google-oauth.md.
