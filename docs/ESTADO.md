@@ -1,39 +1,34 @@
 # Estado · 16/11/2026
 
-## Implementado: prototipo H1, pendiente de validación visual y despliegue
+## Implementado y desplegado
 
-- Next.js/React/TypeScript, interfaz española móvil/tablet/escritorio.
-- Recepciones manuales, catálogo, cantidades físicas, incidencias, cierre motivado e histórico.
-- Perfiles de lector con pruebas aisladas, activación y versionado; parsers simple, delimitado y subconjunto GS1 (01/10/17/21).
-- Lotes y series opcionales; conversión de caja/unidad; deshacer y auditoría.
-- Conciliación decimal por referencia explícita/proveedor/producto, varias recepciones por factura, parcial y sin doble consumo.
-- Demo sintética persistida en IndexedDB. Fotos/PDF de demo quedan exclusivamente en este navegador, no en Drive ni Neon.
-- API privada PostgreSQL, bloqueo transaccional de espacio, versión e idempotencia. Migración incluida.
-- Sesión de administrador único para piloto; no equivale a roles multiusuario ni producto terminado.
+Prototipo H1: interfaz móvil en español, catálogo, recepciones manuales, perfiles de lector y banco de pruebas, lotes/series opcionales, incidencias, histórico y conciliación decimal por referencias explícitas. Demo IndexedDB separada del espacio privado PostgreSQL.
 
-## Verificación
+Acceso privado con usuario y contraseña de piloto. Se ha verificado login, lectura autenticada de Neon y cierre de sesión en producción.
 
-- 29 pruebas de dominio aprobadas al retomar; añadida prueba de sesión malformada y firma manipulada.
-- Build previamente aprobado; nueva ejecución registrada durante entrega.
-- E2E visual no ejecutado: Chromium aborta porque el entorno rechaza socket() (Operation not permitted). No se ha certificado PDA, cámara ni navegador físico.
-- Vercel: proyecto y Neon aportados por capturas del usuario. El conector sigue devolviendo 404 al consultar recepciones-ia en sentidino. No afirmar conexión real Neon hasta prueba autenticada.
+Lectura asistida Claude añadida: fotos JPG/PNG/WebP y PDF, salida validada, revisión y selección manual de productos, originales privados en Neon. Ver [09-claude.md](09-claude.md) para límites y decisiones. No crea ni confirma recepciones automáticamente.
 
-## Decisiones provisionales
+## Pruebas y evidencia
 
-PostgreSQL guarda el agregado de trabajo en JSONB y un registro de comandos, con bloqueo por organización. Adecuado para validar el flujo inicial; pendiente normalización, outbox y pruebas concurrentes reales antes de producción.
-Acceso mediante contraseña de piloto y cookie firmada de 8 horas; pendiente proveedor de identidad, roles, limitación distribuida de intentos y recuperación. Usar solo con datos sintéticos hasta completar seguridad y pruebas.
-Sin DATABASE_URL o credenciales de acceso completas se muestra demo explícita. No hay fallback silencioso de datos privados a demo.
+- 32 pruebas automatizadas aprobadas y build de producción correcto.
+- Despliegue de integración 8685c756918ad43735f3f6b6c9094c81a060d0e2 servido por Vercel.
+- API autenticada confirma ANTHROPIC_API_KEY configurada, modelo claude-haiku-5-5.
+- Prueba real con PDF sintético TEST-CLAUDE-001: proveedor, referencia, fecha, producto, cantidad 12 y lote extraídos; precio ausente conservado como null. HTTP 200.
+- Escritura/lectura del original en Neon comprobada: bytes descargados idénticos al PDF enviado.
+- Repetición del mismo documento: HTTP 200, cached=true; no nueva llamada al modelo.
+- La prueba creó un registro documental sintético, no producto, albarán comercial ni recepción física.
+- No se han probado documentos reales, cámara/PDA física, exactitud por campo a escala ni flujo visual completo. Chromium local no arranca por restricción de sockets del entorno.
+
+## Decisiones provisionales y limitaciones
+
+PostgreSQL guarda el agregado de trabajo en JSONB con versión y bloqueo por organización. Documentos de piloto en tabla separada; Drive pendiente. Sesión de un administrador, pendiente roles multiusuario, protección distribuida de login, retención, restauración y pruebas de concurrencia reales.
+
+Límite de piloto IA: 10 intentos diarios, 3 MB, 10 páginas PDF, 6000 tokens de salida; sin escalado automático caro. Cachear documento idéntico no equivale a aprender diseños.
 
 ## Pendiente
 
-OCR/IA, aprendizaje de plantillas, fotografía de etiquetas con extracción, Gmail/Dinahosting, Drive, cola durable, permisos multiusuario, devoluciones/correcciones, adjuntos de servidor y compatibilidad de cámara ampliada. No se realizan movimientos en ERP ni pagos.
-La cámara inicial usa BarcodeDetector si existe y requiere confirmación; otros navegadores necesitan lector físico o entrada manual.
-No se comparan precios: siempre revisión de Administración. La conciliación H1 compara cantidades; no verifica lotes/series contra facturas sin evidencia.
+Aprendizaje de plantillas, extracción de etiquetas de lotes/series, correo Gmail/Dinahosting, Drive, procesamiento durable, devoluciones/correcciones y compatibilidad de cámara ampliada. No se realizan movimientos ERP ni pagos. Precios siguen pendientes de Administración; la conciliación automática de H1 respalda cantidades y no certifica lotes de factura.
 
 ## Siguiente paso
 
-Publicar y verificar build Vercel; configurar acceso privado en variables de servidor sin compartir secretos por chat. Probar flujo completo con navegador habilitado y Neon; después conectar OCR y archivo con muestras y credenciales autorizadas.
-
-## Despliegue comprobado · 16/11/2026
-
-Commit de aplicación 32eb5bbb4be148ced06a8dede09185f0e9481547 publicado en main. GitHub registra Vercel success. https://recepciones-ia.vercel.app devuelve HTTP 200; /api/health devuelve status ok, version 0.1.0; /api/workspace sin sesión devuelve 401. La página declara databaseConfigured=true y serverConfigured=false: DATABASE_URL está presente, pero falta completar APP_ACCESS_PASSWORD y/o SESSION_SECRET válido. No se ha probado aún lectura/escritura autenticada en Neon. La demo puede usarse con datos sintéticos. Bloqueo siguiente: configuración segura de acceso del piloto y habilitar acceso del conector al proyecto Vercel.
+Validar fotos y PDFs representativos, corregir UI con navegador habilitado, verificar recepción completa con catálogo real y PDA, conectar archivo Drive y buzón autorizado. Mantener revisión humana hasta disponer de benchmark.
