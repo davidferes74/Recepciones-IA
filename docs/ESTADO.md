@@ -65,3 +65,7 @@ Bloqueos para validación real: muestras representativas de albaranes/facturas y
 - UI elimina aviso «OAuth pendiente de implementar»: muestra configuración externa pendiente mientras falten GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET. No muestra buzón autorizado sin callback válido.
 - 48 pruebas y build correctos. Pendientes credenciales Google Cloud, autorización real del usuario y prueba end-to-end de buzón. Captura periódica y lectura IA automática siguen pendientes.
 - Instrucciones exactas del propietario: docs/11-google-oauth.md.
+
+
+## Corrección retorno OAuth — 16/11/2026
+Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET de Google. Conserva HttpOnly, Secure en producción, validación de origen en mutaciones y state de un uso ligado a sesión. Usuarios con cookie anterior deben cerrar sesión y volver a entrar. No se ejecutaron tests locales: executor no disponible; compilación a verificar en Vercel y retorno real pendiente del usuario.
