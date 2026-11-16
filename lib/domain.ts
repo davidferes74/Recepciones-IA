@@ -15,7 +15,7 @@ export const commandSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('testProfile'),profileId:id,raw:z.string().min(1).max(512),expected:text}),
  z.object({type:z.literal('activateProfile'),profileId:id,device:text}),
  z.object({type:z.literal('createReceipt'),supplier:text,reference:text,date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),lines:z.array(z.object({productId:id,expected:qty,lot:z.string().max(40).optional()})).min(1).max(100),fileIds:z.array(id).max(20).default([])}),
- z.object({type:z.literal('createInvoice'),supplier:text,reference:text,date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),receiptRefs:z.array(text).max(100),lines:z.array(z.object({productId:id,quantity:qty,price:z.string().regex(/^\d{1,9}(\.\d{1,4})?$/).optional()})).min(1).max(100)}),
+ z.object({type:z.literal('createInvoice'),supplier:text,reference:text,date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),receiptRefs:z.array(text).max(100),fileIds:z.array(id).max(20).optional(),lines:z.array(z.object({productId:id,quantity:qty,price:z.string().regex(/^\d{1,9}(\.\d{1,4})?$/).optional()})).min(1).max(100)}),
  z.object({type:z.literal('issue'),receiptId:id,message:text}),
  z.object({type:z.literal('resolveIssue'),issueId:id,resolution:text})
 ]);

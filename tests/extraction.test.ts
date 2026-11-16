@@ -1,0 +1,5 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {detectType,extractionSchema} from '../lib/extraction';
+test('file format is verified from bytes, not user MIME',()=>{assert.equal(detectType(Buffer.from('%PDF-1.4')),'application/pdf');assert.equal(detectType(Buffer.from([255,216,255,1])),'image/jpeg');assert.throws(()=>detectType(Buffer.from('<script>')));assert.throws(()=>detectType(Buffer.from('')));});
+test('extraction keeps missing values and initial zeros, rejects malformed quantities and empty lines',()=>{const doc={supplier:null,reference:null,date:null,receiptRefs:[],warnings:['Revisión'],lines:[{description:'Producto',code:'0012',quantity:null,unit:null,lot:null,price:null,page:1,evidence:'Producto 0012'}]};assert.equal(extractionSchema.parse(doc).lines[0].code,'0012');assert.equal(extractionSchema.parse(doc).lines[0].quantity,null);assert.equal(extractionSchema.safeParse({...doc,lines:[]}).success,false);assert.equal(extractionSchema.safeParse({...doc,lines:[{...doc.lines[0],quantity:'1,000'}]}).success,false);});
