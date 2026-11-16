@@ -32,3 +32,11 @@ Aprendizaje de plantillas, extracción de etiquetas de lotes/series, correo Gmai
 ## Siguiente paso
 
 Validar fotos y PDFs representativos, corregir UI con navegador habilitado, verificar recepción completa con catálogo real y PDA, conectar archivo Drive y buzón autorizado. Mantener revisión humana hasta disponer de benchmark.
+
+## Comprobación adicional de acceso · 16/11/2026
+
+10 comprobaciones HTTP reales aprobadas: workspace, extracción y original bloqueados sin sesión (401); login, lectura Neon y original autenticados (200); escritura de workspace y extracción rechazadas desde origen ajeno (403); logout correcto y consulta posterior sin sesión bloqueada. No se enviaron documentos nuevos a IA ni se modificó mercancía.
+
+Añadido scripts/smoke-private.mjs para repetir las comprobaciones básicas con SMOKE_USERNAME y SMOKE_PASSWORD en entorno, sin guardar ni imprimir credenciales. Ejecutar: node scripts/smoke-private.mjs. Sintaxis comprobada; la ejecución documentada anterior se hizo con cliente HTTP Python equivalente y añadió la prueba de original.
+
+Bloqueos para validación real: muestras representativas de albaranes/facturas y etiquetas, acceso a navegador de pruebas/PDA física, buzón inicial y autorización de carpeta Drive. La repetición automática se pausa mientras falten estos elementos; el prototipo no se declara producto terminado.
