@@ -13,7 +13,9 @@
   "dependencies": {
     "decimal.js": "10.6.0",
     "exceljs": "4.4.0",
+    "imapflow": "2.12.1",
     "lucide-react": "0.468.0",
+    "mailparser": "3.14.5",
     "next": "16.4.6",
     "pdf-lib": "1.17.1",
     "pg": "8.16.3",
@@ -22,6 +24,7 @@
     "zod": "4.1.12"
   },
   "devDependencies": {
+    "@types/mailparser": "3.9.0",
     "@types/node": "24.10.0",
     "@types/pg": "8.15.6",
     "@types/react": "19.2.2",

@@ -50,3 +50,11 @@ Bloqueos para validación real: muestras representativas de albaranes/facturas y
 - 38 tests y build correctos; plantilla renderizada y leída por el parser de la app. No se añadieron productos ficticios en producción.
 - Normalizados prefijos OOXML del exportador para compatibilidad con ExcelJS.
 - Pendiente prueba visual interactiva/PDA real: Chromium no arranca en este entorno. Despliegue a verificar tras publicación.
+
+## 2026-11-16 — Primer incremento de correo IMAP
+- Pantalla privada de correo con alta/edición, prueba, carpetas, filtros, fecha inicial y vista previa; cifrado obligatorio.
+- Captura manual incremental y transaccional de adjuntos; deduplicación, exclusiones y bandeja con original descargable.
+- Adjuntos abren lectura Claude/revisión existente y guardado de factura con conciliación.
+- Migración 003; endpoint autenticado para futuro programador. No se ha activado captura automática ni Gmail OAuth.
+- 43 tests y build correctos. No prueba real de buzón: requiere TOKEN_ENCRYPTION_KEY y credenciales introducidas en la app. Navegador/PDA y concurrencia DB pendientes.
+- Procedimiento, límites y configuración: docs/10-correo.md.

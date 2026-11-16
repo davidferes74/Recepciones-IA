@@ -1,0 +1,56 @@
+import {ImapFlow} from 'imapflow';
+import {resolve4} from 'node:dns/promises';
+import {simpleParser} from 'mailparser';
+import {createHash,randomUUID} from 'node:crypto';
+import {allowedHost,publicIPv4,unseal,type MailConfig} from './mail-config';
+import {getPool,org} from './server-store';
+import {detectType} from './extraction';
+export async function withMailbox<T>(config:MailConfig,work:(client:ImapFlow)=>Promise<T>):Promise<T>{
+ if(!allowedHost(config.host))throw Error('Servidor no permitido. Usa el host seguro de Dinahosting; otros hosts requieren MAIL_IMAP_ALLOWED_HOSTS.');
+ const addresses=await resolve4(config.host);if(!addresses.length||addresses.some(ip=>!publicIPv4(ip)))throw Error('Servidor no válido.');
+ const client=new ImapFlow({host:addresses[0],servername:config.host,port:993,secure:true,auth:{user:config.username,pass:config.password},logger:false,disableAutoIdle:true,disableCompression:true,connectionTimeout:10000,greetingTimeout:10000,socketTimeout:15000,maxLiteralSize:6*1024*1024,maxResponseSize:7*1024*1024,tls:{rejectUnauthorized:true,minVersion:'TLSv1.2'}});
+ client.on('error',()=>{});const timeout=setTimeout(()=>client.close(),45000);
+ try{await client.connect();return await work(client);}finally{clearTimeout(timeout);client.close();}
+}
+export async function testMailbox(config:MailConfig){return withMailbox(config,async c=>{const folders=(await c.list()).filter(f=>!f.flags.has('\\Noselect')).map(f=>f.path).slice(0,100);const lock=await c.getMailboxLock(config.folder,{readOnly:true});lock.release();return folders;});}
+export async function inspectMailbox(config:MailConfig,cursor=0,validity?:string){return withMailbox(config,async c=>{
+ const lock=await c.getMailboxLock(config.folder,{readOnly:true});try{
+ const current=String(c.mailbox&&c.mailbox.uidValidity);const after=current===validity?cursor:0;
+ const found=await c.search({since:new Date(config.since+'T00:00:00Z'),...(config.sender?{from:config.sender}:{}),...(config.subject?{subject:config.subject}:{})},{uid:true});
+ const uids=(found||[]).filter(uid=>uid>after).sort((a,b)=>a-b);const messages=[];
+ for(const uid of uids.slice(0,10)){const m=await c.fetchOne(uid,{envelope:true,size:true},{uid:true});if(!m)continue;messages.push({uid,subject:m.envelope?.subject||'(sin asunto)',sender:(m.envelope?.from||[]).map(f=>f.address||'').join(', '),receivedAt:m.envelope?.date?new Date(m.envelope.date).toISOString():null,size:m.size});}
+ return {messages,validity:current,remaining:Math.max(0,uids.length-10)};
+ }finally{lock.release();}
+});}
+export async function captureMailbox(accountId:string){
+ const pool=getPool(),token=randomUUID();const claim=await pool.query("UPDATE ria_mail_accounts SET lease_until=now()+interval '2 minutes',lease_token=$3 WHERE id=$1 AND organization_id=$2 AND paused=false AND (lease_until IS NULL OR lease_until<now()) RETURNING *",[accountId,org(),token]);
+ const account=claim.rows[0];if(!account)throw Error('Cuenta pausada o comprobación en curso.');
+ const config={...account.config,password:unseal(account.secret,org())} as MailConfig;
+ let saved=0,processed=0;
+ try{await withMailbox(config,async c=>{const lock=await c.getMailboxLock(config.folder,{readOnly:true});try{
+ const validity=String(c.mailbox&&c.mailbox.uidValidity);const after=validity===account.uid_validity?Number(account.last_uid):0;
+ const found=await c.search({since:new Date(config.since+'T00:00:00Z'),...(config.sender?{from:config.sender}:{}),...(config.subject?{subject:config.subject}:{})},{uid:true});
+ const uids=(found||[]).filter(uid=>uid>after).sort((a,b)=>a-b).slice(0,10);
+ for(const uid of uids){const meta=await c.fetchOne(uid,{envelope:true,size:true},{uid:true});if(!meta)continue;
+ const sender=(meta.envelope?.from||[]).map(x=>x.address||'').join(', ').slice(0,500),subject=(meta.envelope?.subject||'(sin asunto)').slice(0,500),received=meta.envelope?.date||null;
+ const items:{filename:string;mime:string|null;bytes:Buffer|null;status:string;detail:string}[]=[];
+ if(!meta.size||meta.size>6*1024*1024)items.push({filename:'Correo demasiado grande',mime:null,bytes:null,status:'excluded',detail:'Supera 6 MB. Descarga sus adjuntos desde tu correo y súbelos individualmente.'});
+ else{const message=await c.fetchOne(uid,{source:{start:0,maxLength:6*1024*1024+1}},{uid:true});if(!message||!message.source)throw Error('No se pudo descargar el correo.');
+ const parsed=await simpleParser(message.source,{skipHtmlToText:true,skipTextToHtml:true,skipImageLinks:true});
+ for(const a of parsed.attachments){let mime:string|null=null,detail='',status='received';try{mime=detectType(a.content);}catch{status='excluded';detail='Formato no admitido. Solo PDF, JPG, PNG y WebP.';}
+ if(a.contentDisposition==='inline'){status='excluded';detail='Imagen incrustada: revisar en el correo si contiene una factura.';}
+ if(!a.size||a.size>3*1024*1024){status='excluded';detail='Adjunto vacío o mayor de 3 MB.';}
+ items.push({filename:(a.filename||'Adjunto').slice(0,150),mime,bytes:status==='received'?a.content:null,status,detail});}
+ if(!items.length)items.push({filename:'Sin adjuntos',mime:null,bytes:null,status:'excluded',detail:'No se descargan enlaces del cuerpo del correo.'});}
+ const db=await pool.connect();try{await db.query('BEGIN');const lease=await db.query('SELECT id FROM ria_mail_accounts WHERE id=$1 AND organization_id=$2 AND lease_token=$3 AND paused=false FOR UPDATE',[accountId,org(),token]);if(!lease.rowCount)throw Error('Captura detenida.');
+ await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',[org()+':mail-digest']);
+ for(const [index,item] of items.entries()){const digest=item.bytes?createHash('sha256').update(item.bytes).digest('hex'):null;const prior=digest?await db.query('SELECT id FROM ria_mail_items WHERE organization_id=$1 AND digest=$2 AND original IS NOT NULL LIMIT 1',[org(),digest]):null;const duplicate=Boolean(prior?.rowCount);
+ const result=await db.query('INSERT INTO ria_mail_items(id,organization_id,account_id,source_key,sender,subject,received_at,filename,mime,original,digest,status,detail) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING',[randomUUID(),org(),accountId,`${config.folder}:${validity}:${uid}:${index}`,sender,subject,received,item.filename,item.mime,duplicate?null:item.bytes,digest,duplicate?'duplicate':item.status,duplicate?'Archivo idéntico ya capturado.':item.detail]);if(result.rowCount&&item.bytes&&!duplicate)saved++;}
+ await db.query('UPDATE ria_mail_accounts SET uid_validity=$2,last_uid=$3 WHERE id=$1',[accountId,validity,uid]);await db.query('COMMIT');processed++;
+ }catch(e){await db.query('ROLLBACK');throw e;}finally{db.release();}
+ }
+ }finally{lock.release();}});
+ await pool.query('UPDATE ria_mail_accounts SET last_sync=now(),last_error=NULL WHERE id=$1 AND lease_token=$2',[accountId,token]);return {saved,processed};
+ }catch{await pool.query("UPDATE ria_mail_accounts SET last_error='No se completó la captura. Revisa credenciales, carpeta y conexión; vuelve a comprobar.' WHERE id=$1 AND lease_token=$2",[accountId,token]);throw Error('No se completó la captura. Los documentos ya guardados se conservan; puedes reintentar.');}
+ finally{await pool.query('UPDATE ria_mail_accounts SET lease_until=NULL,lease_token=NULL WHERE id=$1 AND lease_token=$2',[accountId,token]);}
+}

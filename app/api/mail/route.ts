@@ -1,0 +1,24 @@
+import {NextRequest,NextResponse} from 'next/server';
+import {randomUUID} from 'node:crypto';
+import {z} from 'zod';
+import {authorized,sameOrigin} from '@/lib/auth';
+import {getPool,org} from '@/lib/server-store';
+import {mailConfigSchema,encryptionReady,seal} from '@/lib/mail-config';
+import {testMailbox,inspectMailbox,captureMailbox} from '@/lib/mail-imap';
+export const runtime='nodejs';export const maxDuration=60;
+const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:{'Cache-Control':'no-store'}});
+export async function GET(req:NextRequest){if(!authorized(req))return json({error:'Inicia sesión.'},401);try{const accounts=await getPool().query('SELECT id,name,email,config,paused,last_sync,last_error FROM ria_mail_accounts WHERE organization_id=$1 ORDER BY created_at',[org()]);const items=await getPool().query('SELECT id,account_id,sender,subject,received_at,filename,status,detail,original IS NOT NULL AS downloadable FROM ria_mail_items WHERE organization_id=$1 ORDER BY created_at DESC LIMIT 100',[org()]);return json({accounts:accounts.rows,items:items.rows,encryptionReady:encryptionReady(),automatic:false});}catch{return json({error:'No se pudo cargar el correo. Comprueba la migración de base de datos.'},503);}}
+export async function POST(req:NextRequest){if(!authorized(req))return json({error:'Inicia sesión.'},401);if(!sameOrigin(req))return json({error:'Origen no permitido.'},403);try{
+ const text=await req.text();if(text.length>10000)return json({error:'Solicitud demasiado grande.'},413);const body=JSON.parse(text);
+ if(['test','preview','save'].includes(body.action)){
+ const config=mailConfigSchema.parse(body.config);if(!encryptionReady())return json({error:'Falta TOKEN_ENCRYPTION_KEY en el servidor. Configura la clave de cifrado antes de introducir credenciales.'},503);
+ if(body.action==='preview')return json(await inspectMailbox(config));
+ const folders=await testMailbox(config);if(body.action==='test')return json({folders});
+ const {password,...safe}=config;if(body.id){const id=z.uuid().parse(body.id);const updated=await getPool().query('UPDATE ria_mail_accounts SET name=$3,email=$4,config=$5,secret=$6,paused=true,uid_validity=NULL,last_uid=0,last_error=NULL WHERE id=$1 AND organization_id=$2 AND (lease_until IS NULL OR lease_until<now())',[id,org(),config.name,config.email,JSON.stringify(safe),seal(password,org())]);if(!updated.rowCount)return json({error:'Cuenta no disponible o captura en curso. Reintenta después.'},409);return json({saved:true});}await getPool().query('INSERT INTO ria_mail_accounts(id,organization_id,name,email,config,secret) VALUES($1,$2,$3,$4,$5,$6)',[randomUUID(),org(),config.name,config.email,JSON.stringify(safe),seal(password,org())]);return json({saved:true});
+ }
+ const id=z.uuid().parse(body.id);
+ if(body.action==='registered'){const documentId=z.uuid().parse(body.documentId);const r=await getPool().query("SELECT 1 FROM ria_workspaces WHERE organization_id=$1 AND EXISTS (SELECT 1 FROM jsonb_array_elements(state->'invoices') i WHERE i->'fileIds' ? $2)",[org(),documentId]);if(!r.rowCount)return json({error:'Factura todavía no registrada.'},409);const match=await getPool().query('SELECT 1 FROM ria_mail_items m JOIN ria_documents d ON d.organization_id=m.organization_id AND d.original=m.original WHERE m.id=$1 AND m.organization_id=$2 AND d.id=$3',[id,org(),documentId]);if(!match.rowCount)return json({error:'El documento registrado no corresponde a este adjunto.'},409);await getPool().query("UPDATE ria_mail_items SET status='registered',detail=$3 WHERE id=$1 AND organization_id=$2",[id,org(),'Factura registrada; original '+documentId]);return json({saved:true});}
+ if(body.action==='capture')return json(await captureMailbox(id));
+ if(body.action==='pause'){const paused=z.boolean().parse(body.paused);await getPool().query('UPDATE ria_mail_accounts SET paused=$3 WHERE id=$1 AND organization_id=$2',[id,org(),paused]);return json({saved:true});}
+ return json({error:'Acción no válida.'},400);
+ }catch(e){if(e instanceof z.ZodError)return json({error:'Revisa los campos obligatorios y la fecha inicial.'},422);if((e as {code?:string})?.code==='23505')return json({error:'Ya existe una conexión para esta cuenta.'},409);return json({error:'No se completó la operación. Comprueba host seguro, usuario, contraseña, carpeta y conexión. No se muestran detalles privados del servidor.'},502);}}
