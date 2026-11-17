@@ -5,6 +5,7 @@ import {z} from 'zod';
 import {getPool,org} from './server-store';
 import {allowedHost,publicIPv4,seal,unseal,encryptionReady} from './mail-config';
 import {maxOdooProducts,type OdooPackagingRow,type OdooProductRow} from './odoo-products';
+import {availableFields,normalizeBills,normalizeOrders,normalizeReceipts,normalizeSuppliers,pendingOrders,type OdooKind} from './odoo-data';
 // Conexión de SOLO LECTURA con Odoo mediante clave API, compatible con la app Sentidiño BI:
 // mismas variables de entorno (ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY, ODOO_COMPANY_ID) y mismos
 // transportes (/jsonrpc clásico y /json/2 de Odoo 19+). Si la app principal ya tiene acceso, se hereda.
@@ -12,7 +13,7 @@ export type OdooConfig={url:string;db:string;login:string;apiKey:string;companyI
 export type OdooSource='inherited'|'own';
 export class OdooError extends Error{constructor(message:string,public status=502){super(message);}}
 export const odooConfigSchema=z.object({url:z.string().trim().max(300).transform(v=>v.replace(/\/+$/,'')).pipe(z.url({protocol:/^https$/})),db:z.string().trim().min(1).max(120),login:z.string().trim().min(1).max(254),apiKey:z.string().min(1).max(400),companyId:z.number().int().positive().nullable().default(null)});
-const READ_ONLY=new Set(['search_read','search_count']);
+const READ_ONLY=new Set(['search_read','search_count','fields_get']);
 // Accesos de la app principal, con su misma precedencia: primero su fichero de configuración (el que crea el
 // asistente de Sentidiño BI en data/config.json) y, para lo que falte, sus variables de entorno.
 // El fichero se localiza con SENTIDINO_BI_CONFIG (ruta completa) o con DATA_DIR, la variable que ya usa el BI.
@@ -80,4 +81,34 @@ export async function fetchOdooProducts(c:OdooConfig){
  for(let offset=0;;offset+=page){const batch=await searchRead<OdooProductRow>(c,'product.product',[['purchase_ok','=',true],['active','=',true]],['name','default_code','barcode','uom_id','tracking'],{limit:page,offset,order:'id'});rows.push(...batch);if(batch.length<page)break;if(rows.length>=maxOdooProducts){truncated=true;break;}}
  const packaging=await searchRead<OdooPackagingRow>(c,'product.packaging',[['barcode','!=',false]],['product_id','barcode','qty'],{limit:5000,order:'id'}).catch(()=>[] as OdooPackagingRow[]);
  return {rows:rows.slice(0,maxOdooProducts),packaging,truncated};
+}
+
+// ---------- Compras: pedidos pendientes, entradas, facturas y proveedores (solo lectura) ----------
+type Rec=Record<string,unknown>;
+// Los nombres de algunos campos cambian entre versiones de Odoo: se pregunta una vez qué campos existen
+// en cada modelo y solo se piden esos. Caché en memoria por instancia y base de datos.
+const fieldCache=new Map<string,Set<string>>();
+async function modelFields(c:OdooConfig,model:string):Promise<Set<string>>{
+ const key=c.url+'|'+c.db+'|'+model,hit=fieldCache.get(key);if(hit)return hit;
+ let raw:unknown;
+ try{const uid=await jsonRpc(c,'common','authenticate',[c.db,c.login,c.apiKey,{}]);if(!uid)throw new OdooError('Odoo no acepta la clave API. Revisa usuario, base de datos y clave.',401);
+  raw=await jsonRpc(c,'object','execute_kw',[c.db,uid,c.apiKey,model,'fields_get',[],{attributes:['type']}]);}
+ catch(e){if(!transportGone(e))throw e;raw=await json2(c,model,'fields_get',{attributes:['type']});}
+ const names=new Set(Object.keys((raw&&typeof raw==='object'?raw:{}) as Rec));fieldCache.set(key,names);return names;
+}
+async function read(c:OdooConfig,model:string,domain:unknown[],wanted:string[],opts:{limit:number;order?:string}){const have=await modelFields(c,model);return {rows:await searchRead<Rec>(c,model,domain,availableFields(wanted,have),opts),have};}
+const chunk=<T,>(items:T[],size:number)=>Array.from({length:Math.ceil(items.length/size)},(_,i)=>items.slice(i*size,(i+1)*size));
+export const odooLimits={orders:300,receipts:200,bills:200,suppliers:1000};
+export async function fetchOdooData(c:OdooConfig,kind:OdooKind){
+ if(kind==='orders'){
+  // Pedidos confirmados que aún no se han recibido del todo.
+  const have=await modelFields(c,'purchase.order');const domain:unknown[]=[['state','in',['purchase','done']]];if(have.has('receipt_status'))domain.push(['receipt_status','in',['pending','partial']]);
+  const {rows}=await read(c,'purchase.order',domain,['name','partner_id','partner_ref','date_order','date_planned','amount_total','currency_id','receipt_status','invoice_status'],{limit:odooLimits.orders,order:'date_planned asc, id asc'});
+  const ids=rows.map(r=>Number(r.id)).filter(Boolean);const lines:Rec[]=[];
+  for(const part of chunk(ids,100)){const r=await read(c,'purchase.order.line',[['order_id','in',part]],['order_id','product_id','name','product_qty','qty_received','qty_invoiced','price_unit','product_uom_id','product_uom','display_type'],{limit:5000,order:'order_id, sequence, id'});lines.push(...r.rows);}
+  return {items:pendingOrders(normalizeOrders(rows,lines)),truncated:rows.length>=odooLimits.orders};
+ }
+ if(kind==='receipts'){const {rows}=await read(c,'stock.picking',[['picking_type_code','=','incoming'],['state','!=','cancel']],['name','partner_id','origin','state','scheduled_date','date_done','purchase_id'],{limit:odooLimits.receipts,order:'id desc'});return {items:normalizeReceipts(rows),truncated:rows.length>=odooLimits.receipts};}
+ if(kind==='bills'){const {rows}=await read(c,'account.move',[['move_type','in',['in_invoice','in_refund']],['state','!=','cancel']],['name','ref','partner_id','invoice_date','invoice_date_due','state','payment_state','amount_total','amount_untaxed','currency_id','invoice_origin','move_type'],{limit:odooLimits.bills,order:'id desc'});return {items:normalizeBills(rows),truncated:rows.length>=odooLimits.bills};}
+ const {rows}=await read(c,'res.partner',[['supplier_rank','>',0],['active','=',true]],['name','vat','ref'],{limit:odooLimits.suppliers,order:'name'});return {items:normalizeSuppliers(rows),truncated:rows.length>=odooLimits.suppliers};
 }

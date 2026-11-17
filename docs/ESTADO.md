@@ -118,3 +118,10 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - El avatar de la cabecera y la fila de usuario del menú lateral abren un menú con quién está dentro, en qué espacio y las acciones de cuenta: entrar con un usuario real (desde la demostración), cerrar sesión, ver la demostración, configuración, tema y vuelta a Sentidiño BI.
 - Corrige que desde la demostración no hubiera forma visible de pasar al acceso real.
 - Comprobado visualmente en demostración; las acciones del espacio privado (cerrar sesión, ver demostración) sin probar con sesión real.
+
+
+## 2026-11-17 — Paso 1 del nuevo objetivo: leer compras de Odoo
+- Nuevo rumbo acordado con el propietario: la app valida entradas y facturas, el agente propone y el humano aprueba; se escribirá en Odoo (entrada sobre el pedido, factura de proveedor en borrador) con un panel de autoridad del agente. Esto sustituye la regla anterior de no hacer movimientos en un ERP; la app sigue funcionando sin Odoo.
+- Hecho: lectura de pedidos por recibir, entradas, facturas y proveedores de Odoo, con vistas propias. Detalle en docs/12-odoo.md.
+- 95 pruebas. Revisado visualmente con datos de ejemplo. **Sin probar contra un Odoo real.**
+- Siguiente: recepción contra pedido; emparejamiento de facturas sin número de albarán y alerta de precios; bandeja de validación y autoridad del agente; escritura en Odoo (primero en base de pruebas); automatización del correo.

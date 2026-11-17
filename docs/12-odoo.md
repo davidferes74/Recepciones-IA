@@ -32,3 +32,13 @@ Los heredados mandan sobre los propios.
 Decisión del propietario (17/11/2026): esta app se integrará en el código de Sentidiño BI como un módulo más que opera de forma autónoma.
 - Lo ya preparado: accesos a Odoo compartidos (fichero y variables del BI), mismo sistema visual y misma clave de tema.
 - Lo que falta para el acoplamiento real: alta del módulo en `src/catalogo-modulos.js` del BI (clave, nombre, prefijo de API), sesión compartida entre ambas (hoy cada una tiene su propio acceso) y decidir cómo conviven los dos servidores: el BI es Express con JavaScript plano y esta app es Next.js con PostgreSQL.
+
+## Paso 1 (17/11/2026) — Lectura de compras
+Objetivo acordado: la app valida entradas y facturas y, más adelante, escribe en Odoo (entrada sobre el pedido y factura de proveedor en borrador) con validación humana. Este paso solo lee.
+- `GET /api/odoo/data?kind=orders|receipts|bills|suppliers`: lectura en vivo con caché en memoria de 60 s; `refresh=1` la salta. No se guarda nada en la base de datos de la app.
+- **Pedidos por recibir** (`purchase.order` confirmados con recepción pendiente o parcial, hasta 300) con sus líneas: pedido, recibido, pendiente y precio. Sin `receipt_status`, el estado se deduce de las líneas.
+- **Entradas en Odoo** (`stock.picking` de tipo entrada, últimas 200) y **Facturas en Odoo** (`account.move` de proveedor y abonos, últimas 200).
+- **Proveedores** (`res.partner` con `supplier_rank > 0`, hasta 1000): se sugieren en los formularios de albarán y factura para escribir el nombre exacto.
+- Antes de leer cada modelo se pregunta qué campos existen (`fields_get`) y solo se piden esos: los nombres cambian entre Odoo 17, 19 y 20 (p. ej. `product_uom` / `product_uom_id`).
+- Vistas: selector en Recepciones (Recepciones · Pedidos por recibir · Entradas en Odoo) y en Facturas (Facturas recibidas · Facturas en Odoo). La demostración enseña datos de ejemplo marcados como tales.
+- Sin probar contra un Odoo real. Siguiente paso: recepción contra el pedido de Odoo.
