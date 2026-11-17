@@ -112,3 +112,9 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - Al llegar al espacio privado: vídeo de fondo a pantalla completa y botón «Entrar» centrado; después, el acceso sobre el mismo fondo. Una vez por sesión del navegador si ya hay sesión iniciada.
 - Vídeo alojado en la app (`public/bienvenida/entrada.mp4`, 1280×720, 10 s, 0,5 MB; el original pesaba 11,6 MB) con imagen fija de respaldo (`entrada.jpg`, 35 KB) que se ve al instante. Con «reducir movimiento» o ahorro de datos solo se muestra la imagen.
 - Recodificado con el Chrome local (MediaRecorder, H.264). Comprobado en Chrome de escritorio: se reproduce y repite en bucle. Sin probar en Safari/iOS ni en PDA.
+
+
+## 2026-11-17 — Menú de usuario
+- El avatar de la cabecera y la fila de usuario del menú lateral abren un menú con quién está dentro, en qué espacio y las acciones de cuenta: entrar con un usuario real (desde la demostración), cerrar sesión, ver la demostración, configuración, tema y vuelta a Sentidiño BI.
+- Corrige que desde la demostración no hubiera forma visible de pasar al acceso real.
+- Comprobado visualmente en demostración; las acciones del espacio privado (cerrar sesión, ver demostración) sin probar con sesión real.

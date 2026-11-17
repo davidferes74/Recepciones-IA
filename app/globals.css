@@ -247,3 +247,30 @@ button.browser-row{cursor:pointer}button.browser-row.selected{background:var(--a
 .welcome-content small{color:var(--ink-muted);letter-spacing:.14em;text-transform:uppercase;font-size:.7rem;text-shadow:0 1px 8px rgb(5 12 20 / .6)}
 /* Ya se entró en esta sesión del navegador: no se repite la bienvenida, salvo como fondo del acceso. */
 html.intro-skip .welcome:not(.needs-login){display:none}
+
+/* ---------- Menú de usuario ---------- */
+.user-menu{position:relative}
+.user-menu.in-sidebar{border-top:1px solid var(--border);padding:10px 0 12px}
+.avatar-trigger{display:grid;place-items:center;border:0;background:transparent;padding:4px;border-radius:50%;min-width:44px;min-height:44px}
+.user-trigger{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:8px 6px;border-radius:var(--radius-control);text-align:left;font:inherit;font-size:.86rem;color:var(--foreground);min-height:52px}
+.user-trigger-text{flex:1;min-width:0;font-weight:600}.user-trigger-text small{display:block;font-weight:400;color:var(--text-muted);font-size:.72rem}
+.user-trigger>svg{color:var(--text-muted);flex:none}
+.avatar.demo{background:var(--warning-bg);color:var(--warning)}
+.avatar.large{width:44px;height:44px;font-size:1rem}
+.user-popover{position:absolute;z-index:60;width:min(300px,calc(100vw - 24px));padding:8px;border:1px solid var(--border);border-radius:var(--radius-panel);background:var(--surface-raised);box-shadow:var(--shadow-floating);animation:user-pop var(--duration-fast) var(--ease-enter)}
+.user-menu.in-topbar .user-popover{right:0;top:calc(100% + 8px)}
+.user-menu.in-sidebar .user-popover{left:0;bottom:calc(100% + 4px)}
+@keyframes user-pop{from{opacity:0;transform:translateY(4px) scale(.98)}to{opacity:1;transform:none}}
+.user-card{display:flex;align-items:center;gap:12px;padding:10px 10px 12px;margin-bottom:6px;border-bottom:1px solid var(--border)}
+.user-card strong{display:block}.user-card small{display:block;color:var(--text-muted);font-size:.75rem}
+.user-mode{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:2px 9px;border-radius:var(--radius-pill);font-size:.7rem;font-weight:600}
+.user-mode.demo{background:var(--warning-bg);color:var(--warning)}.user-mode.private{background:var(--success-bg);color:var(--success)}
+.user-item{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;padding:8px 10px;border:0;border-radius:var(--radius-control);background:transparent;font:inherit;font-size:.9rem;font-weight:500;color:var(--foreground);text-align:left;text-decoration:none}
+.user-item>svg{color:var(--text-muted);flex:none}
+.user-item small{display:block;font-weight:400;font-size:.74rem;color:var(--text-muted)}
+.user-item.primary{background:var(--accent);color:var(--accent-foreground);font-weight:600;margin-bottom:4px}.user-item.primary>svg,.user-item.primary small{color:inherit;opacity:.9}
+.user-item.primary:disabled{background:var(--surface-muted);color:var(--text-muted)}
+.user-item.danger,.user-item.danger>svg{color:var(--danger)}
+.user-sep{height:1px;margin:6px 4px;background:var(--border)}
+@media(hover:hover) and (pointer:fine){.user-item:hover:not(:disabled):not(.primary),.user-trigger:hover,.avatar-trigger:hover{background:var(--surface-muted)}.user-item.primary:hover:not(:disabled){background:var(--accent-strong)}.user-item.danger:hover{background:var(--danger-bg)}}
+@media(prefers-reduced-motion:reduce){.user-popover{animation:none}}
