@@ -137,3 +137,10 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - Alerta de precio cuando lo facturado no coincide con lo acordado en el pedido, con el impacto en euros. Detalle en docs/04-lectura-conciliacion.md.
 - 109 pruebas. Revisado visualmente con datos de ejemplo (alerta de precio y propuesta). Sin probar con facturas reales ni contra un Odoo real.
 - Siguiente: bandeja de validación y panel de autoridad del agente; escritura en Odoo; automatización.
+
+
+## 2026-11-17 — Paso 4: bandeja de validación y autoridad del agente
+- Nueva pestaña Validación con lo que requiere decisión, lo listo y lo que espera; validación con un toque o como excepción con motivo; histórico de lo validado con su autor.
+- Panel «Autoridad del agente» en Configuración: cuatro permisos, apagados por defecto. Detalle en docs/14-validacion-agente.md.
+- 119 pruebas. Revisado visualmente con datos de ejemplo. Sin probar los clics a mano ni con datos reales. No escribe en Odoo.
+- Siguiente: escritura en Odoo (entrada sobre el pedido, lotes, factura en borrador), primero en base de pruebas; automatización del correo.

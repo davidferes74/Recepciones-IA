@@ -1,7 +1,7 @@
 'use client';
 import {useState} from 'react';
 import Decimal from 'decimal.js';
-import {FileText,CheckCircle2,AlertTriangle,Clock3,HelpCircle,Package,ArrowRight,Sparkles,Pencil,BadgeEuro} from 'lucide-react';
+import {FileText,CheckCircle2,AlertTriangle,Clock3,HelpCircle,Package,ArrowRight,Sparkles,Pencil,BadgeEuro,ShieldCheck} from 'lucide-react';
 import type {Invoice,Workspace} from '@/lib/types';
 import {invoiceSummary,priceCheck,type Command} from '@/lib/domain';
 import {Badge,date,quantity} from './ui';
@@ -39,6 +39,8 @@ export function InvoiceDetail({invoice:f,state,run,onBack}:{invoice:Invoice;stat
  <section className="panel"><div className="panel-heading"><FileText size={20}/><h2>{f.reference}</h2><Badge kind={kind}>{label}</Badge></div>
  <div className="match-body">
   <p className="muted">{f.supplier} · {date(f.date)}</p>
+  {f.validation?<div className="validated-bar"><ShieldCheck size={18}/><span><strong>Validada {f.validation.by==='agent'?'por el agente':'por una persona'}{f.validation.exception?' como excepción':''}</strong><small>{new Date(f.validation.at).toLocaleString('es-ES',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Madrid'})}{f.validation.note?' · '+f.validation.note:''}</small></span><button type="button" className="button secondary small" disabled={busy} onClick={()=>void act({type:'unvalidate',kind:'invoice',id:f.id})}>Deshacer</button></div>
+   :summary.complete&&price.status==='ok'&&<div className="validated-bar pending"><CheckCircle2 size={18}/><span><strong>Todo coincide</strong><small>Cantidades respaldadas y precios iguales a los acordados.</small></span><button type="button" className="button primary small" disabled={busy} onClick={()=>void act({type:'validate',kind:'invoice',id:f.id})}>Validar factura</button></div>}
   {hasProposal&&!editing&&<div className="match-proposal"><Sparkles size={20}/><div><strong>Esta factura no cita albaranes: propuesta por productos recibidos</strong><p>Coincide con {proposedReceipts.length===1?'una entrega':proposedReceipts.length+' entregas'} de {f.supplier} todavía sin facturar: {proposedReceipts.map(r=>r.reference+' ('+date(r.date)+')').join(' · ')}. {summary.proposalComplete?'Cubre todas las unidades facturadas.':'No cubre todas las unidades facturadas.'}</p><div className="match-proposal-actions"><button type="button" className="button primary" disabled={busy} onClick={()=>void act({type:'acceptMatch',invoiceId:f.id})}><CheckCircle2 size={17}/>Aceptar emparejamiento</button><button type="button" className="button secondary" disabled={busy} onClick={()=>{setPicked(proposedReceipts.map(r=>r.reference));setEditing(true);}}><Pencil size={16}/>Elegir albaranes a mano</button></div></div></div>}
   <div className="match-summary">
    <div className="match-tile"><span>Facturado</span><strong>{quantity(summary.total)}</strong><small>unidades</small></div>
