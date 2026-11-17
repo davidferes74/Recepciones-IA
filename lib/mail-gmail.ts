@@ -1,10 +1,9 @@
 import {z} from 'zod';
 import {createHash,randomUUID} from 'node:crypto';
-import {simpleParser} from 'mailparser';
 import {getPool,org} from './server-store';
 import {unseal,seal} from './mail-config';
 import {gmailGet,gmailScope} from './google-oauth';
-import {detectType} from './extraction';
+import {readMessage,excludedItem,maxMessageBytes,type MailItem} from './mail-items';
 export const gmailConfigSchema=z.object({name:z.string().trim().min(1).max(100),folder:z.string().min(1).max(200),since:z.iso.date(),sender:z.string().trim().max(254).default(''),subject:z.string().trim().max(150).default('')});
 export function gmailQuery(since:string){const parsed=z.iso.date().parse(since);return 'after:'+Math.floor(new Date(parsed+'T00:00:00Z').getTime()/1000);}
 type Account={id:string;secret:string;config:z.infer<typeof gmailConfigSchema>;gmail_cursor:string|null};
@@ -19,11 +18,11 @@ export async function captureGmail(accountId:string){const pool=getPool(),lease=
  const messages=z.array(z.object({id:z.string().regex(/^[a-zA-Z0-9_-]+$/)})).parse(page.messages||[]);let completed=true;
  for(const m of messages){if(processed>=10||Date.now()-started>30000){completed=false;break;}const key='gmail:'+createHash('sha256').update(JSON.stringify(config)).digest('hex').slice(0,16)+':'+m.id+':';const exists=await pool.query('SELECT 1 FROM ria_mail_items WHERE organization_id=$1 AND account_id=$2 AND left(source_key,length($3))=$3 LIMIT 1',[org(),accountId,key]);if(exists.rowCount)continue;
  const meta=await gmailGet('/messages/'+m.id+'?format=metadata&metadataHeaders=From&metadataHeaders=Subject',token);const headers=meta.payload?.headers||[];const header=(name:string)=>String(headers.find((h:{name:string;value:string})=>h.name.toLowerCase()===name)?.value||'').slice(0,500);const sender=header('from'),subject=header('subject');
- const items:{filename:string;mime:string|null;bytes:Buffer|null;status:string;detail:string}[]=[];
- const excluded=(detail:string)=>items.push({filename:'Correo excluido',mime:null,bytes:null,status:'excluded',detail});
- if((config.sender&&!sender.toLowerCase().includes(config.sender.toLowerCase()))||(config.subject&&!subject.toLowerCase().includes(config.subject.toLowerCase())))excluded('No cumple los filtros de remitente/asunto.');
- else if(!meta.sizeEstimate||meta.sizeEstimate>6*1024*1024)excluded('Correo mayor de 6 MB o tamaño desconocido. Descarga sus adjuntos manualmente.');
- else{const raw=await gmailGet('/messages/'+m.id+'?format=raw',token);if(typeof raw.raw!=='string')throw Error('Correo sin contenido.');const bytes=Buffer.from(raw.raw,'base64url');if(bytes.length>6*1024*1024)excluded('Correo mayor de 6 MB.');else{const parsed=await simpleParser(bytes,{skipHtmlToText:true,skipTextToHtml:true,skipImageLinks:true});for(const a of parsed.attachments){let mime:string|null=null,status='received',detail='';try{mime=detectType(a.content);}catch{status='excluded';detail='Formato no admitido.';}if(a.contentDisposition==='inline'){status='excluded';detail='Imagen incrustada: revisar en el correo.';}if(!a.size||a.size>3*1024*1024){status='excluded';detail='Adjunto vacío o mayor de 3 MB.';}items.push({filename:(a.filename||'Adjunto').slice(0,150),mime,status,detail,bytes:status==='received'?a.content:null});}if(!items.length)excluded('Sin adjuntos. No se descargan enlaces.');}}
+ let items:MailItem[];
+ if((config.sender&&!sender.toLowerCase().includes(config.sender.toLowerCase()))||(config.subject&&!subject.toLowerCase().includes(config.subject.toLowerCase())))items=[excludedItem('Correo excluido','No cumple los filtros de remitente/asunto.')];
+ else if(!meta.sizeEstimate||meta.sizeEstimate>maxMessageBytes)items=[excludedItem('Correo excluido','Correo mayor de 6 MB o tamaño desconocido. Descarga sus adjuntos manualmente.')];
+ // Errores HTTP de Gmail se tratan como transitorios (fatales): detienen la captura sin avanzar y se reintentan.
+ else items=await readMessage(async()=>{const raw=await gmailGet('/messages/'+m.id+'?format=raw',token);return typeof raw.raw==='string'?Buffer.from(raw.raw,'base64url'):null;},()=>true);
  const db=await pool.connect();try{await db.query('BEGIN');const owned=await db.query('SELECT id FROM ria_mail_accounts WHERE id=$1 AND organization_id=$2 AND lease_token=$3 AND paused=false FOR UPDATE',[accountId,org(),lease]);if(!owned.rowCount)throw Error('Captura detenida.');await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',[org()+':mail-digest']);for(const [i,item] of items.entries()){const digest=item.bytes?createHash('sha256').update(item.bytes).digest('hex'):null;const prior=digest?await db.query('SELECT id FROM ria_mail_items WHERE organization_id=$1 AND digest=$2 AND original IS NOT NULL LIMIT 1',[org(),digest]):null;const duplicate=Boolean(prior?.rowCount);const inserted=await db.query('INSERT INTO ria_mail_items(id,organization_id,account_id,source_key,sender,subject,received_at,filename,mime,original,digest,status,detail) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING',[randomUUID(),org(),accountId,key+i,sender,subject,meta.internalDate?new Date(Number(meta.internalDate)):null,item.filename,item.mime,duplicate?null:item.bytes,digest,duplicate?'duplicate':item.status,duplicate?'Archivo idéntico ya capturado.':item.detail]);if(inserted.rowCount&&item.bytes&&!duplicate)saved++;}await db.query('COMMIT');processed++;}catch(e){await db.query('ROLLBACK');throw e;}finally{db.release();}
  }
  await pool.query('UPDATE ria_mail_accounts SET gmail_cursor=$3,last_sync=now(),last_error=NULL WHERE id=$1 AND lease_token=$2',[accountId,lease,completed?(page.nextPageToken||null):account.gmail_cursor]);return {saved,processed};

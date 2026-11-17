@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {applyCommand,reconcile,invoiceSummary,sum,type Command} from '../lib/domain';
+import {applyCommand,reconcile,invoiceSummary,sum,DomainError,type Command} from '../lib/domain';
 import {seedWorkspace} from '../lib/seed';
 import {parseScan,baseProfile,validGTIN} from '../lib/scanner';
 import type {Workspace} from '../lib/types';
@@ -37,3 +37,4 @@ test('same reference from different supplier never matches',()=>{const s=seedWor
 test('ambiguous or absent reference is not fuzzy matched',()=>{const s=seedWorkspace();s.invoices[0].receiptRefs=[];assert.equal(reconcile(s).length,0);});
 test('new documents validate unknown products and duplicates',()=>{let s=ready();assert.throws(()=>exec(s,{type:'createReceipt',supplier:'P',reference:'A',date:'2026-11-15',fileIds:[],lines:[{productId:'UNKNOWN',expected:'1'}]}));assert.throws(()=>exec(s,{type:'createInvoice',supplier:s.invoices[0].supplier,reference:s.invoices[0].reference,date:'2026-11-15',receiptRefs:[],lines:[{productId:'p1',quantity:'1'}]}));});
 test('catalog code uniqueness and mandatory pack conversion',()=>{const s=ready();assert.throws(()=>exec(s,{type:'createProduct',name:'X',sku:'X',code:scan.raw,unit:'ud',tracking:'none'}));assert.throws(()=>exec(s,{type:'createProduct',name:'X',sku:'X',code:'X',unit:'ud',tracking:'none',packCode:'P'}));});
+test('reader format errors are domain errors with the real reason (API 422, not 503)',()=>{const s=ready();s.profiles[0].prefix='XX';assert.throws(()=>exec(s,scan),(e:unknown)=>e instanceof DomainError&&e.code===422&&/prefijo/.test(e.message));assert.throws(()=>exec(ready(),{...scan,raw:'8412345678904'}),(e:unknown)=>e instanceof DomainError&&/control/.test(e.message));assert.throws(()=>exec(seedWorkspace(),{type:'testProfile',profileId:'lector-1',raw:'https://example.com',expected:'X'}),DomainError);});

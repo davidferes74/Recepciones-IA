@@ -25,6 +25,8 @@ export type Command=z.infer<typeof commandSchema>;
 export type Envelope={id:string;version:number;command:Command};
 export const envelopeSchema=z.object({id:z.string().uuid(),version:z.number().int().nonnegative(),command:commandSchema});
 export class DomainError extends Error{constructor(message:string,public code=422){super(message);}}
+// parseScan lanza Error genérico; se convierte en DomainError para que la API devuelva 422 con el motivo real.
+function readScan(raw:string,p:Profile){try{return parseScan(raw,p);}catch(e){throw new DomainError(e instanceof Error?e.message:'Lectura no válida.');}}
 export const sum=(xs:string[])=>xs.reduce((a,v)=>a.plus(v),new Decimal(0)).toString();
 export function reconcile(state:Workspace):Allocation[]{
  const used=new Map<string,Decimal>();const allocations:Allocation[]=[];
@@ -55,7 +57,7 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
  case 'scan':{
   const r=openReceipt(c.receiptId),p=s.profiles.find(x=>x.id===c.profileId);if(!p)throw new DomainError('Selecciona un perfil de lector.');
   if(p.state!=='validated')throw new DomainError('Prueba y activa el perfil del lector antes de recibir.');
-  const parsed=parseScan(c.raw,p);const found=s.products.filter(x=>x.code===parsed.code||x.code.padStart(14,'0')===parsed.code||x.packCode===parsed.code);
+  const parsed=readScan(c.raw,p);const found=s.products.filter(x=>x.code===parsed.code||x.code.padStart(14,'0')===parsed.code||x.packCode===parsed.code);
   if(found.length!==1)throw new DomainError('Código desconocido o ambiguo. No se ha sumado mercancía.');
   const product=found[0],lines=r.lines.filter(l=>l.productId===product.id);
   if(lines.length!==1)throw new DomainError('Producto ausente o repetido en el albarán. Revisión necesaria.');const line=lines[0];
@@ -77,7 +79,7 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
  case 'confirm':{const r=openReceipt(c.receiptId);const discrepancy=r.lines.some(l=>!new Decimal(l.expected).eq(l.received))||s.issues.some(i=>i.receiptId===r.id&&!i.resolved);if(discrepancy&&!c.reason?.trim())throw new DomainError('Indica el motivo para cerrar con diferencias.');r.status=discrepancy?'exceptions':'confirmed';r.closedAt=now;r.closeReason=c.reason;message=r.reference+' · recepción '+(discrepancy?'cerrada con diferencias':'confirmada');break;}
  case 'tracking':s.tracking=c.enabled;message='Seguimiento de lotes y series '+(c.enabled?'activado':'desactivado')+' para nuevas recepciones';break;
  case 'profile':{const current=s.profiles.find(p=>p.id===c.profile.id);const p:Profile={...c.profile,version:current?current.version+1:1,state:'draft'};s.profiles=s.profiles.filter(x=>x.id!==p.id);s.profiles.push(p);message='Perfil guardado. Pendiente de prueba · '+p.name;break;}
- case 'testProfile':{const p=s.profiles.find(x=>x.id===c.profileId);if(!p)throw new DomainError('Perfil inexistente.');const parsed=parseScan(c.raw,p);if(parsed.code!==c.expected)throw new DomainError('El código interpretado no coincide con el esperado.');p.testedVersion=p.version;p.testedCode=parsed.code;message='Prueba aislada correcta · '+p.name;break;}
+ case 'testProfile':{const p=s.profiles.find(x=>x.id===c.profileId);if(!p)throw new DomainError('Perfil inexistente.');const parsed=readScan(c.raw,p);if(parsed.code!==c.expected)throw new DomainError('El código interpretado no coincide con el esperado.');p.testedVersion=p.version;p.testedCode=parsed.code;message='Prueba aislada correcta · '+p.name;break;}
  case 'activateProfile':{const p=s.profiles.find(x=>x.id===c.profileId);if(!p||p.testedVersion!==p.version)throw new DomainError('Realiza una prueba correcta de esta versión antes de activar.');p.state='validated';p.validatedDevice=c.device;message='Perfil validado por el usuario · '+p.name;break;}
  case 'createReceipt':{if(s.receipts.some(r=>r.supplier===c.supplier&&r.reference===c.reference))throw new DomainError('Ya existe este albarán para el proveedor.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');if(new Set(c.lines.map(l=>l.productId)).size!==c.lines.length)throw new DomainError('En este prototipo, agrupa cada producto en una sola línea.');s.receipts.unshift({id:commandId,supplier:c.supplier,reference:c.reference,date:c.date,status:'open',tracking:s.tracking,createdAt:now,fileIds:c.fileIds,lines:c.lines.map((l,i)=>({...l,id:commandId+'-'+i,received:'0'}))});message='Albarán registrado manualmente · '+c.reference;break;}
  case 'createInvoice':if(s.invoices.some(f=>f.reference===c.reference&&f.supplier===c.supplier))throw new DomainError('Factura ya registrada.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');s.invoices.push({...c,id:commandId,lines:c.lines.map((l,i)=>({...l,id:commandId+'-'+i}))});message='Factura registrada manualmente · '+c.reference;break;

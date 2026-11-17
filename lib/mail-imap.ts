@@ -1,10 +1,9 @@
 import {ImapFlow} from 'imapflow';
 import {resolve4} from 'node:dns/promises';
-import {simpleParser} from 'mailparser';
 import {createHash,randomUUID} from 'node:crypto';
 import {allowedHost,publicIPv4,unseal,type MailConfig} from './mail-config';
 import {getPool,org} from './server-store';
-import {detectType} from './extraction';
+import {readMessage,excludedItem,maxMessageBytes,type MailItem} from './mail-items';
 export async function withMailbox<T>(config:MailConfig,work:(client:ImapFlow)=>Promise<T>):Promise<T>{
  if(!allowedHost(config.host))throw Error('Servidor no permitido. Usa el host seguro de Dinahosting; otros hosts requieren MAIL_IMAP_ALLOWED_HOSTS.');
  const addresses=await resolve4(config.host);if(!addresses.length||addresses.some(ip=>!publicIPv4(ip)))throw Error('Servidor no válido.');
@@ -33,15 +32,9 @@ export async function captureMailbox(accountId:string){
  const uids=(found||[]).filter(uid=>uid>after).sort((a,b)=>a-b).slice(0,10);
  for(const uid of uids){const meta=await c.fetchOne(uid,{envelope:true,size:true},{uid:true});if(!meta)continue;
  const sender=(meta.envelope?.from||[]).map(x=>x.address||'').join(', ').slice(0,500),subject=(meta.envelope?.subject||'(sin asunto)').slice(0,500),received=meta.envelope?.date||null;
- const items:{filename:string;mime:string|null;bytes:Buffer|null;status:string;detail:string}[]=[];
- if(!meta.size||meta.size>6*1024*1024)items.push({filename:'Correo demasiado grande',mime:null,bytes:null,status:'excluded',detail:'Supera 6 MB. Descarga sus adjuntos desde tu correo y súbelos individualmente.'});
- else{const message=await c.fetchOne(uid,{source:{start:0,maxLength:6*1024*1024+1}},{uid:true});if(!message||!message.source)throw Error('No se pudo descargar el correo.');
- const parsed=await simpleParser(message.source,{skipHtmlToText:true,skipTextToHtml:true,skipImageLinks:true});
- for(const a of parsed.attachments){let mime:string|null=null,detail='',status='received';try{mime=detectType(a.content);}catch{status='excluded';detail='Formato no admitido. Solo PDF, JPG, PNG y WebP.';}
- if(a.contentDisposition==='inline'){status='excluded';detail='Imagen incrustada: revisar en el correo si contiene una factura.';}
- if(!a.size||a.size>3*1024*1024){status='excluded';detail='Adjunto vacío o mayor de 3 MB.';}
- items.push({filename:(a.filename||'Adjunto').slice(0,150),mime,bytes:status==='received'?a.content:null,status,detail});}
- if(!items.length)items.push({filename:'Sin adjuntos',mime:null,bytes:null,status:'excluded',detail:'No se descargan enlaces del cuerpo del correo.'});}
+ let items:MailItem[];
+ if(!meta.size||meta.size>maxMessageBytes)items=[excludedItem('Correo demasiado grande','Supera 6 MB. Descarga sus adjuntos desde tu correo y súbelos individualmente.')];
+ else items=await readMessage(async()=>{const m=await c.fetchOne(uid,{source:{start:0,maxLength:maxMessageBytes+1}},{uid:true});return m?m.source:null;},()=>!c.usable);
  const db=await pool.connect();try{await db.query('BEGIN');const lease=await db.query('SELECT id FROM ria_mail_accounts WHERE id=$1 AND organization_id=$2 AND lease_token=$3 AND paused=false FOR UPDATE',[accountId,org(),token]);if(!lease.rowCount)throw Error('Captura detenida.');
  await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',[org()+':mail-digest']);
  for(const [index,item] of items.entries()){const digest=item.bytes?createHash('sha256').update(item.bytes).digest('hex'):null;const prior=digest?await db.query('SELECT id FROM ria_mail_items WHERE organization_id=$1 AND digest=$2 AND original IS NOT NULL LIMIT 1',[org(),digest]):null;const duplicate=Boolean(prior?.rowCount);
