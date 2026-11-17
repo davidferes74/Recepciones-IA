@@ -69,3 +69,12 @@ Bloqueos para validación real: muestras representativas de albaranes/facturas y
 
 ## Corrección retorno OAuth — 16/11/2026
 Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET de Google. Conserva HttpOnly, Secure en producción, validación de origen en mutaciones y state de un uso ligado a sesión. Usuarios con cookie anterior deben cerrar sesión y volver a entrar. No se ejecutaron tests locales: executor no disponible; compilación a verificar en Vercel y retorno real pendiente del usuario.
+
+
+## 2026-11-17 — Varios lotes por producto y recepción parcial
+- Un albarán admite varias líneas del mismo producto si el seguimiento por lotes está activo, el producto se sigue por lote y cada línea declara un lote distinto. La lectura se asigna a la línea cuyo lote coincide exactamente (etiqueta GS1 o lote tecleado); sin lote, o con un lote que no figura, no se suma nada. No hay asignación por parecido.
+- Panel «Lotes y series recibidos»: cantidades agrupadas por lote sin fusionar. Si el albarán no declara lote, lo observado se registra como «no verificable».
+- Recepción parcial: al finalizar con faltantes, el operario decide si el resto llegará (estado `partial`, el albarán sigue abierto) o no llegará (cierre con faltantes y motivo obligatorio). Una recepción parcial respalda facturas solo con lo confirmado; lo leído después no cuenta hasta volver a confirmar. Las lecturas ya confirmadas no se pueden deshacer.
+- Datos nuevos, todos opcionales y compatibles con el estado guardado: `Receipt.status='partial'`, `Receipt.partialAt`, `Line.confirmed`, `Scan.confirmed`; comando `confirm` con `shortage: pending|missing`. Sin migración SQL.
+- 13 pruebas nuevas (67 en total): lotes, parciales y criterios de aceptación de conciliación (150 = 60 + 40 + 50 sin reutilización; 160 deja 10 sin respaldo; factura anterior al albarán se recalcula al confirmar).
+- Pendiente: prueba visual interactiva y con PDA real; un mismo lote repartido en dos líneas; exceso sobre un lote concreto en recepción parcial; devoluciones y abonos; foto de etiqueta.

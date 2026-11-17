@@ -138,3 +138,17 @@ input:hover:not(:focus),select:hover:not(:focus),textarea:hover:not(:focus){bord
 .ticket-body p{margin:7px 0 5px;color:var(--text-secondary)}
 .ticket-body small{display:block;color:var(--text-muted);overflow-wrap:anywhere}
 @media(max-width:640px){.match-summary{grid-template-columns:1fr}.match-body{padding:16px}.inbox-date{display:none}.button.small{min-height:40px}.ticket-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
+
+/* ---------- Lotes y recepción parcial ---------- */
+.lot-tag{display:inline-block;width:fit-content;margin:3px 0;padding:1px 8px;border-radius:var(--radius-pill);background:var(--accent-subtle);color:var(--accent-strong);font-weight:600;font-variant-numeric:tabular-nums}
+.lot-list{padding:6px 22px 14px}
+.lot-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border);flex-wrap:wrap}
+.lot-row:first-child{border-top:0}
+.lot-row>div{flex:1;min-width:140px}.lot-row small{display:block;color:var(--text-muted)}
+.lot-qty{font-family:var(--font-display);font-weight:600;font-variant-numeric:tabular-nums}
+.choice-group{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.choice-group legend{padding:0;margin-bottom:8px;font-weight:600}
+.choice{flex-direction:row;align-items:flex-start;gap:12px;border:1px solid var(--border);border-radius:var(--radius-control);padding:12px 14px;cursor:pointer;font-weight:400;min-height:48px}
+.choice input{width:20px;min-height:20px;height:20px;margin-top:2px;padding:0;flex:none;accent-color:var(--accent);box-shadow:none}
+.choice small{display:block;color:var(--text-muted)}
+.choice.selected{border-color:var(--accent);background:var(--accent-subtle)}

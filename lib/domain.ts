@@ -2,7 +2,7 @@ import {productInputSchema,productErrors} from './products';
 import Decimal from 'decimal.js';
 import {z} from 'zod';
 import {parseScan} from './scanner';
-import type {Workspace,Profile,Allocation,Invoice} from './types';
+import type {Workspace,Profile,Allocation,Invoice,Receipt,Line} from './types';
 const text=z.string().trim().min(1).max(160), id=z.string().min(1).max(100);
 const qty=z.string().regex(/^\d{1,9}(\.\d{1,3})?$/).refine(v=>new Decimal(v).gt(0),'La cantidad debe ser positiva.');
 const profileSchema=z.object({id,name:text,version:z.number().int().positive(),prefix:z.string().max(30),suffix:z.string().max(30),terminator:z.enum(['Enter','Tab']),parser:z.enum(['plain','gs1','delimited']),delimiter:z.string().max(4),codePosition:z.number().int().min(0).max(10),lotPosition:z.number().int().min(-1).max(10),serialPosition:z.number().int().min(-1).max(10),quantity:qty,state:z.enum(['draft','validated'])});
@@ -11,7 +11,7 @@ export const commandSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('importProducts'),products:z.array(productInputSchema).min(1).max(1000)}),
  z.object({type:z.literal('scan'),receiptId:id,raw:z.string().min(1).max(512),profileId:id,lot:z.string().max(40).optional(),serial:z.string().max(40).optional(),allowExcess:z.boolean().optional(),reason:z.string().max(400).optional()}),
  z.object({type:z.literal('undo'),receiptId:id}),
- z.object({type:z.literal('confirm'),receiptId:id,reason:z.string().max(400).optional()}),
+ z.object({type:z.literal('confirm'),receiptId:id,reason:z.string().max(400).optional(),shortage:z.enum(['pending','missing']).optional()}),
  z.object({type:z.literal('tracking'),enabled:z.boolean()}),
  z.object({type:z.literal('profile'),profile:profileSchema}),
  z.object({type:z.literal('testProfile'),profileId:id,raw:z.string().min(1).max(512),expected:text}),
@@ -28,6 +28,12 @@ export class DomainError extends Error{constructor(message:string,public code=42
 // parseScan lanza Error genérico; se convierte en DomainError para que la API devuelva 422 con el motivo real.
 function readScan(raw:string,p:Profile){try{return parseScan(raw,p);}catch(e){throw new DomainError(e instanceof Error?e.message:'Lectura no válida.');}}
 export const sum=(xs:string[])=>xs.reduce((a,v)=>a.plus(v),new Decimal(0)).toString();
+// Cantidad que respalda facturas: en una recepción parcial solo lo confirmado por el operario, no lo leído después.
+export const confirmedQuantity=(r:Receipt,l:Line)=>r.status==='partial'?(l.confirmed||'0'):r.status==='open'?'0':l.received;
+// Lotes observados por línea, sin fusionar. «verifiable» es falso cuando el albarán no declara lote: se registra lo visto, pero no se puede contrastar.
+export function lotBreakdown(state:Workspace,receiptId:string){const r=state.receipts.find(x=>x.id===receiptId);if(!r)return [];const rows=new Map<string,{lineId:string;productId:string;lot:string;quantity:Decimal;verifiable:boolean;matches:boolean}>();
+ for(const sc of state.scans){if(sc.receiptId!==receiptId||sc.reversed||!sc.lot)continue;const line=r.lines.find(l=>l.id===sc.lineId);if(!line)continue;const key=line.id+'|'+sc.lot;const row=rows.get(key)||{lineId:line.id,productId:line.productId,lot:sc.lot,quantity:new Decimal(0),verifiable:Boolean(line.lot),matches:line.lot===sc.lot};row.quantity=row.quantity.plus(sc.quantity);rows.set(key,row);}
+ return [...rows.values()].map(x=>({...x,quantity:x.quantity.toString()}));}
 export function reconcile(state:Workspace):Allocation[]{
  const used=new Map<string,Decimal>();const allocations:Allocation[]=[];
  // Stable invoice order prevents new documents stealing allocations from earlier invoices.
@@ -36,7 +42,7 @@ export function reconcile(state:Workspace):Allocation[]{
   for(const ref of invoice.receiptRefs){const matches=state.receipts.filter(r=>r.reference===ref&&r.supplier===invoice.supplier&&r.status!=='open');
    if(matches.length!==1)continue;const receipt=matches[0];
    for(const rl of receipt.lines.filter(l=>l.productId===line.productId)){
-    const key=receipt.id+':'+rl.id;const available=Decimal.max(0,new Decimal(rl.received).minus(used.get(key)||0));const q=Decimal.min(available,remaining);
+    const key=receipt.id+':'+rl.id;const available=Decimal.max(0,new Decimal(confirmedQuantity(receipt,rl)).minus(used.get(key)||0));const q=Decimal.min(available,remaining);
     if(q.gt(0)){allocations.push({invoiceId:invoice.id,invoiceLineId:line.id,receiptId:receipt.id,lineId:rl.id,quantity:q.toString()});used.set(key,(used.get(key)||new Decimal(0)).plus(q));remaining=remaining.minus(q);}
    }
   }
@@ -49,7 +55,7 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
  if(version!==original.version)throw new DomainError('Hay cambios más recientes. Actualiza antes de continuar.',409);
  const s=structuredClone(original);
  const receipt=(rid:string)=>{const r=s.receipts.find(x=>x.id===rid);if(!r)throw new DomainError('Recepción no encontrada.',404);return r;};
- const openReceipt=(rid:string)=>{const r=receipt(rid);if(r.status!=='open')throw new DomainError('Esta recepción ya está cerrada.',409);return r;};
+ const openReceipt=(rid:string)=>{const r=receipt(rid);if(r.status!=='open'&&r.status!=='partial')throw new DomainError('Esta recepción ya está cerrada.',409);return r;};
  let message='';
  switch(c.type){
  case 'createProduct':{const errors=productErrors([c],s.products);if(errors.length)throw new DomainError(errors[0]);s.products.push({...c,id:commandId});message='Producto registrado · '+c.name;break;}
@@ -60,8 +66,11 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
   const parsed=readScan(c.raw,p);const found=s.products.filter(x=>x.code===parsed.code||x.code.padStart(14,'0')===parsed.code||x.packCode===parsed.code);
   if(found.length!==1)throw new DomainError('Código desconocido o ambiguo. No se ha sumado mercancía.');
   const product=found[0],lines=r.lines.filter(l=>l.productId===product.id);
-  if(lines.length!==1)throw new DomainError('Producto ausente o repetido en el albarán. Revisión necesaria.');const line=lines[0];
-  let lot=parsed.lot||c.lot?.trim(),serial=parsed.serial||c.serial?.trim();
+  if(!lines.length)throw new DomainError('Producto ausente del albarán. Revisión necesaria.');
+  let lot=parsed.lot||c.lot?.trim()||undefined,serial=parsed.serial||c.serial?.trim()||undefined;
+  // Varias líneas del mismo producto = varios lotes declarados: el lote leído decide la línea, nunca por aproximación.
+  let line=lines[0];
+  if(lines.length>1){if(!lot)throw new DomainError('Este producto llega en varios lotes. Escanea la etiqueta o indica el lote.');const match=lines.find(l=>l.lot===lot);if(!match)throw new DomainError('El lote '+lot+' no figura en el albarán para este producto. No se ha sumado; registra una incidencia si ha llegado.');line=match;}
   const quantity=product.packCode===parsed.code?(product.packQuantity||'0'):p.quantity;
   if(new Decimal(quantity).lte(0))throw new DomainError('Embalaje sin conversión configurada.');
   if(r.tracking&&product.tracking==='lot'&&!lot)throw new DomainError('Este producto requiere lote. Escanea la etiqueta o introdúcelo.');
@@ -75,13 +84,22 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
   if(!r.tracking){lot=undefined;serial=undefined;}
   line.received=next.toString();s.scans.push({id:commandId,receiptId:r.id,lineId:line.id,raw:c.raw,quantity,lot,serial,profileId:p.id,profileVersion:p.version,reversed:false,at:now});
   message=product.name+' · +'+quantity+' '+product.unit+(c.reason?' · '+c.reason:'');break;}
- case 'undo':{const r=openReceipt(c.receiptId);const scan=s.scans.findLast(x=>x.receiptId===r.id&&!x.reversed);if(!scan)throw new DomainError('No hay lecturas para deshacer.');const l=r.lines.find(x=>x.id===scan.lineId)!;l.received=new Decimal(l.received).minus(scan.quantity).toString();scan.reversed=true;message='Última lectura deshecha · '+r.reference;break;}
- case 'confirm':{const r=openReceipt(c.receiptId);const discrepancy=r.lines.some(l=>!new Decimal(l.expected).eq(l.received))||s.issues.some(i=>i.receiptId===r.id&&!i.resolved);if(discrepancy&&!c.reason?.trim())throw new DomainError('Indica el motivo para cerrar con diferencias.');r.status=discrepancy?'exceptions':'confirmed';r.closedAt=now;r.closeReason=c.reason;message=r.reference+' · recepción '+(discrepancy?'cerrada con diferencias':'confirmada');break;}
+ case 'undo':{const r=openReceipt(c.receiptId);const scan=s.scans.findLast(x=>x.receiptId===r.id&&!x.reversed);if(!scan)throw new DomainError('No hay lecturas para deshacer.');if(scan.confirmed)throw new DomainError('Esa lectura ya está confirmada en una recepción parcial. Registra una incidencia para corregirla.');const l=r.lines.find(x=>x.id===scan.lineId)!;l.received=new Decimal(l.received).minus(scan.quantity).toString();scan.reversed=true;message='Última lectura deshecha · '+r.reference;break;}
+ case 'confirm':{const r=openReceipt(c.receiptId);
+  const short=r.lines.some(l=>new Decimal(l.received).lt(l.expected)),over=r.lines.some(l=>new Decimal(l.received).gt(l.expected)),openIssues=s.issues.some(i=>i.receiptId===r.id&&!i.resolved);
+  const seal=()=>{for(const l of r.lines)l.confirmed=l.received;for(const x of s.scans)if(x.receiptId===r.id&&!x.reversed)x.confirmed=true;};
+  if(c.shortage==='pending'){
+   // Recepción parcial: se confirma lo llegado y el resto queda pendiente de una entrega posterior.
+   if(!short)throw new DomainError('No quedan cantidades pendientes: confirma la recepción completa.');
+   if(!r.lines.some(l=>new Decimal(l.received).gt(l.confirmed||'0')))throw new DomainError('No hay mercancía nueva que confirmar en esta recepción parcial.');
+   seal();r.status='partial';r.partialAt=now;r.closeReason=c.reason?.trim()||undefined;message=r.reference+' · recepción parcial confirmada; resto pendiente de llegar';break;}
+  const discrepancy=short||over||openIssues;if(discrepancy&&!c.reason?.trim())throw new DomainError('Indica el motivo para cerrar con diferencias.');
+  seal();r.status=discrepancy?'exceptions':'confirmed';r.closedAt=now;r.closeReason=c.reason;message=r.reference+' · recepción '+(discrepancy?(short?'cerrada con faltantes o diferencias':'cerrada con diferencias'):'confirmada');break;}
  case 'tracking':s.tracking=c.enabled;message='Seguimiento de lotes y series '+(c.enabled?'activado':'desactivado')+' para nuevas recepciones';break;
  case 'profile':{const current=s.profiles.find(p=>p.id===c.profile.id);const p:Profile={...c.profile,version:current?current.version+1:1,state:'draft'};s.profiles=s.profiles.filter(x=>x.id!==p.id);s.profiles.push(p);message='Perfil guardado. Pendiente de prueba · '+p.name;break;}
  case 'testProfile':{const p=s.profiles.find(x=>x.id===c.profileId);if(!p)throw new DomainError('Perfil inexistente.');const parsed=readScan(c.raw,p);if(parsed.code!==c.expected)throw new DomainError('El código interpretado no coincide con el esperado.');p.testedVersion=p.version;p.testedCode=parsed.code;message='Prueba aislada correcta · '+p.name;break;}
  case 'activateProfile':{const p=s.profiles.find(x=>x.id===c.profileId);if(!p||p.testedVersion!==p.version)throw new DomainError('Realiza una prueba correcta de esta versión antes de activar.');p.state='validated';p.validatedDevice=c.device;message='Perfil validado por el usuario · '+p.name;break;}
- case 'createReceipt':{if(s.receipts.some(r=>r.supplier===c.supplier&&r.reference===c.reference))throw new DomainError('Ya existe este albarán para el proveedor.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');if(new Set(c.lines.map(l=>l.productId)).size!==c.lines.length)throw new DomainError('En este prototipo, agrupa cada producto en una sola línea.');s.receipts.unshift({id:commandId,supplier:c.supplier,reference:c.reference,date:c.date,status:'open',tracking:s.tracking,createdAt:now,fileIds:c.fileIds,lines:c.lines.map((l,i)=>({...l,id:commandId+'-'+i,received:'0'}))});message='Albarán registrado manualmente · '+c.reference;break;}
+ case 'createReceipt':{if(s.receipts.some(r=>r.supplier===c.supplier&&r.reference===c.reference))throw new DomainError('Ya existe este albarán para el proveedor.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');for(const pid of new Set(c.lines.map(l=>l.productId))){const same=c.lines.filter(l=>l.productId===pid);if(same.length<2)continue;const lots=same.map(l=>l.lot?.trim()||'');if(!s.tracking||s.products.find(p=>p.id===pid)?.tracking!=='lot'||lots.some(x=>!x)||new Set(lots).size!==lots.length)throw new DomainError('Para repetir un producto en el albarán, activa el seguimiento por lotes e indica un lote distinto en cada línea.');}s.receipts.unshift({id:commandId,supplier:c.supplier,reference:c.reference,date:c.date,status:'open',tracking:s.tracking,createdAt:now,fileIds:c.fileIds,lines:c.lines.map((l,i)=>({...l,lot:l.lot?.trim()||undefined,id:commandId+'-'+i,received:'0'}))});message='Albarán registrado manualmente · '+c.reference;break;}
  case 'createInvoice':if(s.invoices.some(f=>f.reference===c.reference&&f.supplier===c.supplier))throw new DomainError('Factura ya registrada.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');s.invoices.push({...c,id:commandId,lines:c.lines.map((l,i)=>({...l,id:commandId+'-'+i}))});message='Factura registrada manualmente · '+c.reference;break;
  case 'issue':receipt(c.receiptId);s.issues.push({id:commandId,receiptId:c.receiptId,message:c.message,at:now,resolved:false});message='Incidencia registrada · '+c.message;break;
  case 'resolveIssue':{const i=s.issues.find(i=>i.id===c.issueId);if(!i)throw new DomainError('Incidencia no encontrada.');i.resolved=true;i.resolution=c.resolution;message='Incidencia resuelta · '+c.resolution;break;}
