@@ -20,6 +20,8 @@ export const commandSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('activateProfile'),profileId:id,device:text}),
  z.object({type:z.literal('createReceipt'),supplier:text,reference:text,date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),lines:z.array(z.object({productId:id,expected:qty,lot:z.string().max(40).optional(),price:z.string().regex(/^\d{1,9}(\.\d{1,4})?$/).optional(),orderLineIds:z.array(z.number().int().positive()).max(50).optional()})).min(1).max(100),fileIds:z.array(id).max(20).default([]),order:z.object({id:z.number().int().positive(),name:text}).optional()}),
  z.object({type:z.literal('createInvoice'),supplier:text,reference:text,date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),receiptRefs:z.array(text).max(100),fileIds:z.array(id).max(20).optional(),lines:z.array(z.object({productId:id,quantity:qty,price:z.string().regex(/^\d{1,9}(\.\d{1,4})?$/).optional()})).min(1).max(100)}),
+ z.object({type:z.literal('acceptMatch'),invoiceId:id}),
+ z.object({type:z.literal('setInvoiceRefs'),invoiceId:id,receiptRefs:z.array(text).max(100)}),
  z.object({type:z.literal('issue'),receiptId:id,message:text}),
  z.object({type:z.literal('resolveIssue'),issueId:id,resolution:text})
 ]);
@@ -36,21 +38,46 @@ export const confirmedQuantity=(r:Receipt,l:Line)=>r.status==='partial'?(l.confi
 export function lotBreakdown(state:Workspace,receiptId:string){const r=state.receipts.find(x=>x.id===receiptId);if(!r)return [];const rows=new Map<string,{lineId:string;productId:string;lot:string;quantity:Decimal;verifiable:boolean;matches:boolean;evidenceIds:string[]}>();
  for(const sc of state.scans){if(sc.receiptId!==receiptId||sc.reversed||!sc.lot)continue;const line=r.lines.find(l=>l.id===sc.lineId);if(!line)continue;const key=line.id+'|'+sc.lot;const row=rows.get(key)||{lineId:line.id,productId:line.productId,lot:sc.lot,quantity:new Decimal(0),verifiable:Boolean(line.lot),matches:line.lot===sc.lot,evidenceIds:[]};row.quantity=row.quantity.plus(sc.quantity);if(sc.evidenceId&&!row.evidenceIds.includes(sc.evidenceId))row.evidenceIds.push(sc.evidenceId);rows.set(key,row);}
  return [...rows.values()].map(x=>({...x,quantity:x.quantity.toString()}));}
+// Emparejamiento factura ↔ recepciones, en dos pasadas y siempre por líneas y cantidades:
+//  1) Facturas que citan albaranes: solo contra esos albaranes del mismo proveedor (base «referencia»).
+//  2) Facturas que no citan ninguno: PROPUESTA por productos recibidos de ese proveedor y aún no facturados,
+//     de la entrega más antigua a la más reciente y nunca posteriores a la fecha de la factura (base «producto»).
+// Las referencias explícitas van primero para que una propuesta no les quite cantidades. Una propuesta no respalda
+// la factura hasta que una persona la acepta (acceptMatch la convierte en referencias explícitas).
 export function reconcile(state:Workspace):Allocation[]{
  const used=new Map<string,Decimal>();const allocations:Allocation[]=[];
- // Stable invoice order prevents new documents stealing allocations from earlier invoices.
- for(const invoice of state.invoices){for(const line of invoice.lines){let remaining=new Decimal(line.quantity);
-  // Explicit references only. Missing references remain for review, not a fuzzy automatic assignment.
-  for(const ref of invoice.receiptRefs){const matches=state.receipts.filter(r=>r.reference===ref&&r.supplier===invoice.supplier&&r.status!=='open');
-   if(matches.length!==1)continue;const receipt=matches[0];
-   for(const rl of receipt.lines.filter(l=>l.productId===line.productId)){
-    const key=receipt.id+':'+rl.id;const available=Decimal.max(0,new Decimal(confirmedQuantity(receipt,rl)).minus(used.get(key)||0));const q=Decimal.min(available,remaining);
-    if(q.gt(0)){allocations.push({invoiceId:invoice.id,invoiceLineId:line.id,receiptId:receipt.id,lineId:rl.id,quantity:q.toString()});used.set(key,(used.get(key)||new Decimal(0)).plus(q));remaining=remaining.minus(q);}
-   }
-  }
- }}return allocations;
+ const take=(invoice:Invoice,line:Invoice['lines'][number],receipt:Receipt,remaining:Decimal,basis?:'product')=>{
+  for(const rl of receipt.lines.filter(l=>l.productId===line.productId)){
+   const key=receipt.id+':'+rl.id;const available=Decimal.max(0,new Decimal(confirmedQuantity(receipt,rl)).minus(used.get(key)||0));const q=Decimal.min(available,remaining);
+   if(q.gt(0)){allocations.push({invoiceId:invoice.id,invoiceLineId:line.id,receiptId:receipt.id,lineId:rl.id,quantity:q.toString(),...(basis?{basis}:{})});used.set(key,(used.get(key)||new Decimal(0)).plus(q));remaining=remaining.minus(q);}
+  }return remaining;};
+ // El orden estable de las facturas evita que un documento nuevo quite asignaciones a uno anterior.
+ for(const invoice of state.invoices){if(!invoice.receiptRefs.length)continue;for(const line of invoice.lines){let remaining=new Decimal(line.quantity);
+  for(const ref of new Set(invoice.receiptRefs)){const matches=state.receipts.filter(r=>r.reference===ref&&r.supplier===invoice.supplier&&r.status!=='open');
+   if(matches.length!==1)continue;remaining=take(invoice,line,matches[0],remaining);}
+ }}
+ for(const invoice of state.invoices){if(invoice.receiptRefs.length)continue;
+  const candidates=state.receipts.filter(r=>r.supplier===invoice.supplier&&r.status!=='open'&&r.date<=invoice.date).sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id));
+  for(const line of invoice.lines){let remaining=new Decimal(line.quantity);for(const receipt of candidates){if(remaining.lte(0))break;remaining=take(invoice,line,receipt,remaining,'product');}}
+ }
+ return allocations;
 }
-export function invoiceSummary(s:Workspace,invoice:Invoice){const total=sum(invoice.lines.map(l=>l.quantity)),matched=sum(s.allocations.filter(a=>a.invoiceId===invoice.id).map(a=>a.quantity));return {total,matched,pending:new Decimal(total).minus(matched).toString(),complete:new Decimal(total).eq(matched)};}
+/** Cantidades de una factura: «matched» es lo respaldado por albaranes citados; «proposed», lo propuesto por productos y aún sin aceptar. */
+export function invoiceSummary(s:Workspace,invoice:Invoice){const mine=s.allocations.filter(a=>a.invoiceId===invoice.id),total=sum(invoice.lines.map(l=>l.quantity)),matched=sum(mine.filter(a=>a.basis!=='product').map(a=>a.quantity)),proposed=sum(mine.filter(a=>a.basis==='product').map(a=>a.quantity));
+ return {total,matched,proposed,pending:new Decimal(total).minus(matched).toString(),complete:new Decimal(total).eq(matched),proposalComplete:new Decimal(proposed).gt(0)&&new Decimal(total).eq(proposed)};}
+// Control económico: precio facturado frente al acordado (el del pedido de compra, guardado en la línea de recepción).
+// Comparación exacta a 4 decimales. Sin precio en la factura o sin precio acordado, no se puede comprobar: nunca se da por bueno.
+export type PriceLine={invoiceLineId:string;productId:string;invoiced:string|null;agreed:string[];status:'ok'|'discrepancy'|'unverifiable';checkedQuantity:string;impact:string};
+export function priceCheck(s:Workspace,invoice:Invoice){
+ const lines:PriceLine[]=invoice.lines.map(line=>{
+  const allocations=s.allocations.filter(a=>a.invoiceId===invoice.id&&a.invoiceLineId===line.id);let impact=new Decimal(0),checked=new Decimal(0),unpriced=false,differs=false;const agreed=new Set<string>();
+  for(const a of allocations){const price=s.receipts.find(r=>r.id===a.receiptId)?.lines.find(l=>l.id===a.lineId)?.price;if(!price||!line.price){unpriced=true;continue;}
+   const p=new Decimal(price).toDecimalPlaces(4),mine=new Decimal(line.price).toDecimalPlaces(4);agreed.add(p.toString());checked=checked.plus(a.quantity);if(!p.eq(mine)){differs=true;impact=impact.plus(mine.minus(p).times(a.quantity));}}
+  const full=new Decimal(line.quantity).eq(checked);
+  return {invoiceLineId:line.id,productId:line.productId,invoiced:line.price||null,agreed:[...agreed],status:differs?'discrepancy':(full&&!unpriced?'ok':'unverifiable'),checkedQuantity:checked.toString(),impact:impact.toDecimalPlaces(2).toString()};});
+ const status=lines.some(l=>l.status==='discrepancy')?'discrepancy' as const:lines.length>0&&lines.every(l=>l.status==='ok')?'ok' as const:'unverifiable' as const;
+ return {status,lines,impact:lines.reduce((a,l)=>a.plus(l.impact),new Decimal(0)).toDecimalPlaces(2).toString()};
+}
 export function applyCommand(original:Workspace,envelope:Envelope,now=new Date().toISOString()):Workspace{
  const {id:commandId,version,command:c}=envelopeSchema.parse(envelope);
  if(original.processed.includes(commandId))return original;
@@ -104,6 +131,11 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
  case 'activateProfile':{const p=s.profiles.find(x=>x.id===c.profileId);if(!p||p.testedVersion!==p.version)throw new DomainError('Realiza una prueba correcta de esta versión antes de activar.');p.state='validated';p.validatedDevice=c.device;message='Perfil validado por el usuario · '+p.name;break;}
  case 'createReceipt':{if(s.receipts.some(r=>r.supplier===c.supplier&&r.reference===c.reference))throw new DomainError('Ya existe este albarán para el proveedor.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');for(const pid of new Set(c.lines.map(l=>l.productId))){const same=c.lines.filter(l=>l.productId===pid);if(same.length<2)continue;const lots=same.map(l=>l.lot?.trim()||'');if(!s.tracking||s.products.find(p=>p.id===pid)?.tracking!=='lot'||lots.some(x=>!x)||new Set(lots).size!==lots.length)throw new DomainError('Para repetir un producto en el albarán, activa el seguimiento por lotes e indica un lote distinto en cada línea.');}s.receipts.unshift({id:commandId,supplier:c.supplier,reference:c.reference,date:c.date,status:'open',tracking:s.tracking,createdAt:now,fileIds:c.fileIds,...(c.order?{order:c.order}:{}),lines:c.lines.map((l,i)=>({...l,lot:l.lot?.trim()||undefined,id:commandId+'-'+i,received:'0'}))});message=(c.order?'Recepción abierta contra el pedido '+c.order.name+' · ':'Albarán registrado manualmente · ')+c.reference;break;}
  case 'createInvoice':if(s.invoices.some(f=>f.reference===c.reference&&f.supplier===c.supplier))throw new DomainError('Factura ya registrada.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');s.invoices.push({...c,id:commandId,lines:c.lines.map((l,i)=>({...l,id:commandId+'-'+i}))});message='Factura registrada manualmente · '+c.reference;break;
+ case 'acceptMatch':{const f=s.invoices.find(x=>x.id===c.invoiceId);if(!f)throw new DomainError('Factura no encontrada.',404);
+  // Aceptar la propuesta la convierte en referencias explícitas: a partir de aquí la factura queda ligada a esos albaranes.
+  const proposed=reconcile(s).filter(a=>a.invoiceId===f.id&&a.basis==='product');if(!proposed.length)throw new DomainError('No hay ninguna propuesta que aceptar para esta factura.');
+  const refs=[...new Set(proposed.map(a=>s.receipts.find(r=>r.id===a.receiptId)!.reference))];f.receiptRefs=refs;message='Emparejamiento aceptado · '+f.reference+' con '+refs.join(', ');break;}
+ case 'setInvoiceRefs':{const f=s.invoices.find(x=>x.id===c.invoiceId);if(!f)throw new DomainError('Factura no encontrada.',404);const refs=[...new Set(c.receiptRefs.map(r=>r.trim()).filter(Boolean))];f.receiptRefs=refs;message='Albaranes de '+f.reference+' · '+(refs.length?refs.join(', '):'ninguno indicado');break;}
  case 'issue':receipt(c.receiptId);s.issues.push({id:commandId,receiptId:c.receiptId,message:c.message,at:now,resolved:false});message='Incidencia registrada · '+c.message;break;
  case 'resolveIssue':{const i=s.issues.find(i=>i.id===c.issueId);if(!i)throw new DomainError('Incidencia no encontrada.');i.resolved=true;i.resolution=c.resolution;message='Incidencia resuelta · '+c.resolution;break;}
  }

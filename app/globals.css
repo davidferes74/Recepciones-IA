@@ -341,3 +341,27 @@ html.intro-skip .welcome:not(.needs-login){display:none}
 .order-chip{display:inline-flex;align-items:center;gap:6px}
 @media(hover:hover) and (pointer:fine){.order-receipt:hover{border-color:var(--accent-border);background:var(--accent-subtle)}}
 @media(max-width:640px){.receive-line{grid-template-columns:minmax(0,1fr) 62px 92px;gap:8px;padding:10px}.order-actions .button{width:100%}}
+
+/* ---------- Propuesta de emparejamiento y control de precios ---------- */
+.match-proposal{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--accent-border);border-radius:var(--radius-control);padding:14px 16px;background:var(--accent-subtle)}
+.match-proposal>svg{color:var(--accent);flex:none;margin-top:2px}.match-proposal p{margin:4px 0 0;color:var(--text-secondary)}
+.match-proposal-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.match-tile.proposed{background:var(--accent-subtle);border-color:var(--accent-border);border-style:dashed}.match-tile.proposed strong{color:var(--accent-strong)}
+.coverage-track{display:flex}.coverage-fill{flex:none}
+.coverage-fill.proposed{background:repeating-linear-gradient(135deg,var(--accent),var(--accent) 4px,color-mix(in oklab,var(--accent) 45%,var(--surface)) 4px,color-mix(in oklab,var(--accent) 45%,var(--surface)) 8px);border-radius:0 var(--radius-pill) var(--radius-pill) 0}
+.match-heading-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.match-heading-row .text-button{display:inline-flex;align-items:center;gap:5px;margin-top:14px}
+.match-ref.proposed{border-style:dashed;border-color:var(--accent-border);background:var(--accent-subtle)}.match-ref.proposed svg{color:var(--accent)}
+.match-ref.pick{cursor:pointer;font:inherit;text-align:left;min-height:48px}.match-ref.pick.on{border-color:var(--accent);background:var(--accent-subtle)}.match-ref.pick.on svg{color:var(--accent)}
+.match-ref-box{width:16px;height:16px;border:1.5px solid var(--border-strong);border-radius:50%}
+.match-editor{display:flex;flex-direction:column;gap:6px;border:1px solid var(--border);border-radius:var(--radius-control);padding:14px}.match-editor .helper{margin:0 0 6px}
+.match-seg.proposed{opacity:.55;background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgb(255 255 255 / .55) 4px,rgb(255 255 255 / .55) 8px)}
+.match-chip.proposed{border-style:dashed}
+.match-line.bad{border-left-color:var(--danger)}
+.match-price{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:.84rem;color:var(--text-muted)}
+.match-price svg{flex:none;margin-top:1px}
+.match-price.ok{color:var(--success)}
+.match-price.discrepancy{color:var(--danger);border-top-style:solid;border-top-color:var(--danger-border)}.match-price.discrepancy strong,.match-price.discrepancy b{color:var(--danger)}
+.match-control.bad{color:var(--danger)}.match-control.bad strong{color:var(--danger)}
+.invoice-card.alert{border-color:var(--danger-border)}
+.price-note.discrepancy{color:var(--danger);font-weight:600}.price-note.ok{color:var(--success)}
+@media(hover:hover) and (pointer:fine){.match-ref.pick:hover{border-color:var(--border-strong)}}

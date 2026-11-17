@@ -130,3 +130,10 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 ## 2026-11-17 — Paso 2: recibir contra un pedido de Odoo
 - «Recibir este pedido» abre una recepción de la app ligada al pedido, con lo pendiente calculado y el precio acordado guardado. Detalle en docs/12-odoo.md.
 - 100 pruebas. Revisado visualmente con datos de ejemplo (pedido desplegado y formulario). Sin probar contra un Odoo real ni el flujo completo a mano. No se escribe en Odoo.
+
+
+## 2026-11-17 — Paso 3: emparejar facturas sin albaranes y alertar de precios
+- Las facturas que no citan albaranes reciben una propuesta por productos recibidos, que una persona acepta o corrige. Las que los citan no cambian.
+- Alerta de precio cuando lo facturado no coincide con lo acordado en el pedido, con el impacto en euros. Detalle en docs/04-lectura-conciliacion.md.
+- 109 pruebas. Revisado visualmente con datos de ejemplo (alerta de precio y propuesta). Sin probar con facturas reales ni contra un Odoo real.
+- Siguiente: bandeja de validación y panel de autoridad del agente; escritura en Odoo; automatización.

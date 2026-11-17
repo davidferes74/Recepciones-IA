@@ -103,3 +103,10 @@ Factura de 150: asignaciones 60+40+50, si recepción física confirmada y víncu
 Factura de 160: 150 respaldadas, 10 sin recepción asociada; pendiente/discrepancia según documentación y confirmación, con explicación.
 Si C falta: 100 respaldadas, 50 pendientes. Al llegar/confirmar C se reconcilia automáticamente.
 Una segunda factura no puede consumir de nuevo esas 150.
+
+## Ampliación 17/11/2026 — Emparejamiento sin albaranes y control de precios
+- **Dos pasadas.** Primero las facturas que citan albaranes (solo contra esos albaranes del mismo proveedor). Después, las que no citan ninguno: se proponen las entregas confirmadas de ese proveedor con los mismos productos y aún sin facturar, de la más antigua a la más reciente y nunca posteriores a la fecha de la factura.
+- **Una propuesta no respalda.** Las asignaciones propuestas llevan `basis:'product'`; `invoiceSummary` las cuenta en `proposed`, no en `matched`. La persona pulsa «Aceptar emparejamiento» (`acceptMatch`), que convierte la propuesta en albaranes explícitos de la factura, o elige los albaranes a mano (`setInvoiceRefs`).
+- Las propuestas reservan cantidades para que dos facturas no reciban la misma propuesta, pero nunca le quitan nada a una factura que cita albaranes.
+- **Precios** (`priceCheck`): precio de la línea de factura frente al acordado, que es el del pedido de compra guardado en la línea de recepción. Comparación exacta a 4 decimales, entrega por entrega. Estados: conforme, distinto (con impacto en euros = diferencia × unidades) o no comprobable (sin precio en la factura, sin precio acordado o sin respaldo completo). Nunca se da por bueno lo que no se puede comprobar.
+- Límites: la propuesta no cruza proveedores ni compara nombres parecidos; el proveedor debe coincidir exactamente. No hay tolerancia de precio configurable. Los albaranes creados a mano no tienen precio acordado.
