@@ -99,3 +99,10 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - «Sincronizar productos» trae los productos comprables y activos de Odoo y los fusiona con el catálogo sin romper recepciones (comando `syncProducts`). Migración aditiva 005.
 - Configuración: el catálogo pasa a una tarjeta compacta con «Ver productos» (ventana con buscador). En albaranes y facturas, el producto se elige en esa misma ventana en lugar de una lista desplegable.
 - 84 pruebas. **No probado contra un Odoo real.**
+
+
+## 2026-11-17 — Preparación como módulo de Sentidiño BI
+- Decisión: app aparte enlazada desde el BI. Detalle y contrato en docs/13-modulo-bi.md.
+- Accesos de Odoo heredados también del fichero de configuración del BI.
+- Entrada con sesión compartida: `GET /api/session/sso` valida un pase firmado de un solo uso (`SENTIDINO_MODULE_SECRET`). Migración aditiva 006. Enlace de vuelta con `SENTIDINO_BI_URL`.
+- 89 pruebas. El lado del BI (alta del módulo y ruta que emite el pase) no está hecho. Sin probar de extremo a extremo.

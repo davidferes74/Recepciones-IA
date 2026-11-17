@@ -230,3 +230,7 @@ button.browser-row{cursor:pointer}button.browser-row.selected{background:var(--a
 .sync-skipped{margin:4px 0 0;padding-left:18px;max-height:140px;overflow-y:auto}
 @media(hover:hover) and (pointer:fine){button.browser-row:hover{background:var(--surface-muted)}.picker:hover{border-color:var(--border-strong)}}
 @media(max-width:640px){.browser-tags{display:none}.sync-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.catalog-actions .button{flex:1}}
+
+/* ---------- Enlace de vuelta a la app principal ---------- */
+.parent-link{display:block;margin:18px 2px -18px;padding:8px 10px;border-radius:var(--radius-control);color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none}
+@media(hover:hover) and (pointer:fine){.parent-link:hover{background:var(--surface-muted);color:var(--accent)}}
