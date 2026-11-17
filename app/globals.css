@@ -166,3 +166,14 @@ input:hover:not(:focus),select:hover:not(:focus),textarea:hover:not(:focus){bord
 .label-result{display:flex;flex-direction:column;gap:12px;border:1px solid var(--border);border-radius:var(--radius-control);padding:14px;background:var(--surface-tint)}
 .label-check{display:flex;align-items:flex-start;gap:9px;border-radius:var(--radius-control);padding:10px 12px;font-size:.88rem;background:var(--surface-muted);color:var(--text-secondary)}
 .label-check.ok{background:var(--success-bg);color:var(--success)}.label-check.warn{background:var(--warning-bg);color:var(--warning)}
+/* ---------- Correo: conexión y cuentas en horizontal (escritorio) ---------- */
+.mail-top{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:18px;align-items:start}
+.mail-connect,.mail-account{display:flex;flex-direction:column;gap:12px;border:1px solid var(--border);border-radius:var(--radius-panel);padding:18px;background:var(--surface)}
+.mail-connect{background:var(--surface-tint)}
+.mail-connect .notice{font-size:.8rem}
+.mail-accounts{display:flex;flex-direction:column;gap:12px;min-width:0}
+.mail-account p{margin:0;overflow-wrap:anywhere}
+.mail-actions{display:flex;flex-wrap:wrap;gap:10px}
+.mail-actions .button{flex:1 1 150px}
+.mail-none{margin:0;padding:18px;border:1px dashed var(--border-strong);border-radius:var(--radius-panel);color:var(--text-muted)}
+@media(max-width:900px){.mail-top{grid-template-columns:1fr}}
