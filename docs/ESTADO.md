@@ -106,3 +106,9 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - Accesos de Odoo heredados también del fichero de configuración del BI.
 - Entrada con sesión compartida: `GET /api/session/sso` valida un pase firmado de un solo uso (`SENTIDINO_MODULE_SECRET`). Migración aditiva 006. Enlace de vuelta con `SENTIDINO_BI_URL`.
 - 89 pruebas. El lado del BI (alta del módulo y ruta que emite el pase) no está hecho. Sin probar de extremo a extremo.
+
+
+## 2026-11-17 — Pantalla de entrada
+- Al llegar al espacio privado: vídeo de fondo a pantalla completa y botón «Entrar» centrado; después, el acceso sobre el mismo fondo. Una vez por sesión del navegador si ya hay sesión iniciada.
+- Vídeo alojado en la app (`public/bienvenida/entrada.mp4`, 1280×720, 10 s, 0,5 MB; el original pesaba 11,6 MB) con imagen fija de respaldo (`entrada.jpg`, 35 KB) que se ve al instante. Con «reducir movimiento» o ahorro de datos solo se muestra la imagen.
+- Recodificado con el Chrome local (MediaRecorder, H.264). Comprobado en Chrome de escritorio: se reproduce y repite en bucle. Sin probar en Safari/iOS ni en PDA.
