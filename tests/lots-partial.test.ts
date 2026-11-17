@@ -74,3 +74,8 @@ test('invoice of 160 leaves 10 unbacked; invoice before delivery C waits and is 
  t.s=exec(t.s,invoice('F-160','160'));const f=()=>t.s.invoices.find(x=>x.reference==='F-160')!;
  assert.equal(invoiceSummary(t.s,f()).matched,'100');assert.equal(invoiceSummary(t.s,f()).pending,'60');
  t.fill(t.ids.C,5);assert.equal(invoiceSummary(t.s,f()).matched,'150');assert.equal(invoiceSummary(t.s,f()).pending,'10');assert.equal(invoiceSummary(t.s,f()).complete,false);});
+test('label photo evidence stays attached to the reading and its lot',()=>{let s=twoLots();const id=s.receipts[0].id,photo=randomUUID();
+ s=exec(s,{...scan(id,rice,'LOTE-A'),evidenceId:photo});s=exec(s,scan(id,rice,'LOTE-A'));
+ assert.equal(s.scans[0].evidenceId,photo);assert.equal(s.scans[1].evidenceId,undefined);
+ assert.deepEqual(lotBreakdown(s,id)[0].evidenceIds,[photo]);
+ assert.throws(()=>exec(s,{...scan(id,rice,'LOTE-A'),evidenceId:'no-es-uuid'}));});

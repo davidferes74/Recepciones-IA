@@ -78,3 +78,12 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - Datos nuevos, todos opcionales y compatibles con el estado guardado: `Receipt.status='partial'`, `Receipt.partialAt`, `Line.confirmed`, `Scan.confirmed`; comando `confirm` con `shortage: pending|missing`. Sin migración SQL.
 - 13 pruebas nuevas (67 en total): lotes, parciales y criterios de aceptación de conciliación (150 = 60 + 40 + 50 sin reutilización; 160 deja 10 sin respaldo; factura anterior al albarán se recalcula al confirmar).
 - Pendiente: prueba visual interactiva y con PDA real; un mismo lote repartido en dos líneas; exceso sobre un lote concreto en recepción parcial; devoluciones y abonos; foto de etiqueta.
+
+
+## 2026-11-17 — Clasificación del documento y foto de etiqueta
+- La lectura clasifica el documento en la misma llamada (sin gastar un intento extra): `documentType` = invoice, delivery_note, credit_note, other o unknown, con `typeEvidence` literal. Contrato `extract-v2`: las lecturas en caché del contrato anterior no se reutilizan.
+- Formulario: muestra el tipo leído. Si no coincide con el tipo elegido, exige confirmación expresa; abonos, otros documentos y tipo desconocido no se pueden guardar como factura o albarán. Desde el correo se puede «Descartar este adjunto» (pasa a Descartados con su original).
+- Foto de etiqueta (`POST /api/label`, prompt P02): «Enviar y verificar» transcribe código, lote, serie y caducidad impresa; las dudas dejan el campo vacío para que lo escriba el operario. La comparación con los lotes del albarán es por igualdad exacta en la app, no la hace el modelo. La foto queda como original privado y se asocia a la lectura (`Scan.evidenceId`).
+- Lógica de IA común en lib/ai-reader.ts (caché, límite diario compartido de 10, guardado del original). Sin migración SQL.
+- 71 pruebas. **No probado contra la API real de Anthropic**: no hay clave en el entorno de desarrollo. Validar en producción con un documento y una etiqueta de prueba antes de usarlo con documentos reales.
+- Pendiente: separar varios documentos de un mismo PDF por páginas, registro de abonos, fotografía de etiqueta en la demo.

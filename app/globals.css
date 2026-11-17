@@ -152,3 +152,17 @@ input:hover:not(:focus),select:hover:not(:focus),textarea:hover:not(:focus){bord
 .choice input{width:20px;min-height:20px;height:20px;margin-top:2px;padding:0;flex:none;accent-color:var(--accent);box-shadow:none}
 .choice small{display:block;color:var(--text-muted)}
 .choice.selected{border-color:var(--accent);background:var(--accent-subtle)}
+
+/* ---------- Tipo de documento leído y lectura de etiqueta ---------- */
+.doc-type{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--border);border-left-width:4px;border-radius:var(--radius-control);padding:12px 14px}
+.doc-type>div{display:flex;flex-direction:column;gap:6px;min-width:0}
+.doc-type small{color:var(--text-muted);overflow-wrap:anywhere}.doc-type p{margin:0}
+.doc-type.ok{border-left-color:var(--success)}.doc-type.ok>svg{color:var(--success)}
+.doc-type.mismatch{border-color:var(--warning-border);border-left-color:var(--warning);background:var(--warning-bg)}.doc-type.mismatch>svg{color:var(--warning)}
+.doc-type.blocked{border-color:var(--danger-border);border-left-color:var(--danger);background:var(--danger-bg)}.doc-type.blocked>svg{color:var(--danger)}
+.doc-type .button{align-self:flex-start}
+.inline-check{flex-direction:row;align-items:flex-start;gap:10px;font-weight:500}
+.inline-check input{width:20px;min-height:20px;height:20px;padding:0;flex:none;accent-color:var(--accent);box-shadow:none}
+.label-result{display:flex;flex-direction:column;gap:12px;border:1px solid var(--border);border-radius:var(--radius-control);padding:14px;background:var(--surface-tint)}
+.label-check{display:flex;align-items:flex-start;gap:9px;border-radius:var(--radius-control);padding:10px 12px;font-size:.88rem;background:var(--surface-muted);color:var(--text-secondary)}
+.label-check.ok{background:var(--success-bg);color:var(--success)}.label-check.warn{background:var(--warning-bg);color:var(--warning)}

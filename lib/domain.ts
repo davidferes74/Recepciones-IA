@@ -9,7 +9,7 @@ const profileSchema=z.object({id,name:text,version:z.number().int().positive(),p
 export const commandSchema=z.discriminatedUnion('type',[
  productInputSchema.extend({type:z.literal('createProduct')}),
  z.object({type:z.literal('importProducts'),products:z.array(productInputSchema).min(1).max(1000)}),
- z.object({type:z.literal('scan'),receiptId:id,raw:z.string().min(1).max(512),profileId:id,lot:z.string().max(40).optional(),serial:z.string().max(40).optional(),allowExcess:z.boolean().optional(),reason:z.string().max(400).optional()}),
+ z.object({type:z.literal('scan'),receiptId:id,raw:z.string().min(1).max(512),profileId:id,lot:z.string().max(40).optional(),serial:z.string().max(40).optional(),allowExcess:z.boolean().optional(),reason:z.string().max(400).optional(),evidenceId:z.string().uuid().optional()}),
  z.object({type:z.literal('undo'),receiptId:id}),
  z.object({type:z.literal('confirm'),receiptId:id,reason:z.string().max(400).optional(),shortage:z.enum(['pending','missing']).optional()}),
  z.object({type:z.literal('tracking'),enabled:z.boolean()}),
@@ -31,8 +31,8 @@ export const sum=(xs:string[])=>xs.reduce((a,v)=>a.plus(v),new Decimal(0)).toStr
 // Cantidad que respalda facturas: en una recepción parcial solo lo confirmado por el operario, no lo leído después.
 export const confirmedQuantity=(r:Receipt,l:Line)=>r.status==='partial'?(l.confirmed||'0'):r.status==='open'?'0':l.received;
 // Lotes observados por línea, sin fusionar. «verifiable» es falso cuando el albarán no declara lote: se registra lo visto, pero no se puede contrastar.
-export function lotBreakdown(state:Workspace,receiptId:string){const r=state.receipts.find(x=>x.id===receiptId);if(!r)return [];const rows=new Map<string,{lineId:string;productId:string;lot:string;quantity:Decimal;verifiable:boolean;matches:boolean}>();
- for(const sc of state.scans){if(sc.receiptId!==receiptId||sc.reversed||!sc.lot)continue;const line=r.lines.find(l=>l.id===sc.lineId);if(!line)continue;const key=line.id+'|'+sc.lot;const row=rows.get(key)||{lineId:line.id,productId:line.productId,lot:sc.lot,quantity:new Decimal(0),verifiable:Boolean(line.lot),matches:line.lot===sc.lot};row.quantity=row.quantity.plus(sc.quantity);rows.set(key,row);}
+export function lotBreakdown(state:Workspace,receiptId:string){const r=state.receipts.find(x=>x.id===receiptId);if(!r)return [];const rows=new Map<string,{lineId:string;productId:string;lot:string;quantity:Decimal;verifiable:boolean;matches:boolean;evidenceIds:string[]}>();
+ for(const sc of state.scans){if(sc.receiptId!==receiptId||sc.reversed||!sc.lot)continue;const line=r.lines.find(l=>l.id===sc.lineId);if(!line)continue;const key=line.id+'|'+sc.lot;const row=rows.get(key)||{lineId:line.id,productId:line.productId,lot:sc.lot,quantity:new Decimal(0),verifiable:Boolean(line.lot),matches:line.lot===sc.lot,evidenceIds:[]};row.quantity=row.quantity.plus(sc.quantity);if(sc.evidenceId&&!row.evidenceIds.includes(sc.evidenceId))row.evidenceIds.push(sc.evidenceId);rows.set(key,row);}
  return [...rows.values()].map(x=>({...x,quantity:x.quantity.toString()}));}
 export function reconcile(state:Workspace):Allocation[]{
  const used=new Map<string,Decimal>();const allocations:Allocation[]=[];
@@ -82,7 +82,7 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
   const next=new Decimal(line.received).plus(quantity);
   if(next.gt(line.expected)&&(!c.allowExcess||!c.reason?.trim()))throw new DomainError('Se supera la cantidad esperada. Revisa la lectura o registra el exceso con motivo.');
   if(!r.tracking){lot=undefined;serial=undefined;}
-  line.received=next.toString();s.scans.push({id:commandId,receiptId:r.id,lineId:line.id,raw:c.raw,quantity,lot,serial,profileId:p.id,profileVersion:p.version,reversed:false,at:now});
+  line.received=next.toString();s.scans.push({id:commandId,receiptId:r.id,lineId:line.id,raw:c.raw,quantity,lot,serial,profileId:p.id,profileVersion:p.version,reversed:false,at:now,...(c.evidenceId?{evidenceId:c.evidenceId}:{})});
   message=product.name+' · +'+quantity+' '+product.unit+(c.reason?' · '+c.reason:'');break;}
  case 'undo':{const r=openReceipt(c.receiptId);const scan=s.scans.findLast(x=>x.receiptId===r.id&&!x.reversed);if(!scan)throw new DomainError('No hay lecturas para deshacer.');if(scan.confirmed)throw new DomainError('Esa lectura ya está confirmada en una recepción parcial. Registra una incidencia para corregirla.');const l=r.lines.find(x=>x.id===scan.lineId)!;l.received=new Decimal(l.received).minus(scan.quantity).toString();scan.reversed=true;message='Última lectura deshecha · '+r.reference;break;}
  case 'confirm':{const r=openReceipt(c.receiptId);

@@ -43,6 +43,6 @@ export default function MailSettings({demo,state,run}:{demo:boolean;state:Worksp
  {preview.map((m,i)=><p key={i}><strong>{m.subject}</strong><br/><small>{m.sender} · {Math.round(m.size/1024)} KB</small></p>)}
  {tested&&<p className="notice">Conexión probada. Puedes guardar esta configuración.</p>}
  <button className="button primary" disabled={!tested}>Guardar conexión pausada</button></fieldset>{busy&&<p role="status">Comprobando…</p>}{notice&&<p role="status">{notice}</p>}{error&&<p className="notice error" role="alert">{error}</p>}</form></Modal>}
- {document&&<Modal title="Revisar factura recibida" onClose={()=>setDocument(null)}><DocumentForm state={state} kind="invoice" demo={false} initialFile={document.file} run={run} onDone={id=>{const itemId=document.item.id;setDocument(null);if(id)void perform(async()=>{await action({action:'registered',id:itemId,documentId:id});await load();});}}/></Modal>}
+ {document&&<Modal title="Revisar factura recibida" onClose={()=>setDocument(null)}><DocumentForm state={state} kind="invoice" demo={false} initialFile={document.file} run={run} onDismiss={reason=>{const itemId=document.item.id;setDocument(null);void perform(async()=>{await action({action:'dismiss',id:itemId,reason});await load();setNotice('Adjunto descartado. Sigue disponible en «Descartados» con su original.');});}} onDone={id=>{const itemId=document.item.id;setDocument(null);if(id)void perform(async()=>{await action({action:'registered',id:itemId,documentId:id});await load();});}}/></Modal>}
  </div></section>;
 }
