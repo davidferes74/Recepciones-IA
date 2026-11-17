@@ -30,3 +30,12 @@ Referencias: https://imapflow.com/docs/api/imapflow-client/ y https://nodemailer
 - Seguridad: se acepta cualquier nombre de servidor público; se rechazan IP literales y nombres internos, se resuelve el nombre y se exige que todas sus direcciones sean públicas, con TLS verificado y solo puerto 993. `MAIL_IMAP_ALLOWED_HOSTS` deja de usarse.
 - Errores de conexión traducidos a mensajes claros (contraseña, servidor, certificado, tiempo de espera, carpeta) sin exponer respuestas del servidor.
 - No probado con un buzón real. Servidores que solo ofrecen STARTTLS en el puerto 143 no están soportados.
+
+## 17/11/2026 — Revisión programada, lectura y registro automáticos
+- **Programación.** `vercel.json` define un cron diario (06:00 UTC) que llama a `GET /api/mail/jobs`. Vercel envía `Authorization: Bearer CRON_SECRET`; sin esa variable el trabajo responde 401 y no hace nada. `POST` con `JOB_TRIGGER_SECRET` sigue disponible para otro programador. La frecuencia diaria es la que admite cualquier plan de Vercel; con un plan superior se puede subir en `vercel.json`.
+- **Qué hace cada ejecución** (lib/mail-auto.ts, con presupuesto de 50 s): revisa todos los buzones activos; si el agente tiene el permiso «Leer las facturas que llegan por correo», lee con IA los adjuntos nuevos; si además tiene «…y registrar las que no dejan dudas», registra la factura.
+- **Límite de coste.** Las lecturas automáticas se detienen al llegar a 6 de las 10 lecturas diarias, para dejar margen a las manuales.
+- **Registrar sin dudas** (lib/auto-invoice.ts, función pura): es una factura; sin advertencias de lectura; el proveedor coincide con uno conocido ignorando mayúsculas, acentos, puntuación y forma jurídica, y solo con uno; tiene número y fecha; no está ya registrada; y cada línea trae cantidad válida y un código que identifica un único producto por código o referencia de unidad (no por código de caja). Cualquier duda deja el documento en «Por revisar» con su lectura hecha.
+- La lectura queda ligada al adjunto (migración 007: `document_id`, `read_state`) y la bandeja la resume en cada fila. Al abrirlo, la lectura se reutiliza sin coste.
+- Las facturas registradas así entran en el flujo normal: emparejamiento, precios, bandeja de validación y permisos del agente.
+- Sin probar con un buzón ni con la API reales.

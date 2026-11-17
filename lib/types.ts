@@ -11,7 +11,7 @@ export type Audit = {id:string; at:string; action:string; message:string; by?:'a
 // si esos datos cambian después, la validación deja de valer. «exception» = validada a pesar de una diferencia, con motivo.
 export type Validation = {at:string; by:'human'|'agent'; note?:string; exception?:boolean; signature?:string};
 // Lo que el agente puede hacer sin esperar a una persona. Todo apagado por defecto.
-export type AgentAuthority = {validateReceipts:boolean; acceptProposals:boolean; validateInvoices:boolean; allowUnverifiedPrice:boolean};
+export type AgentAuthority = {validateReceipts:boolean; acceptProposals:boolean; validateInvoices:boolean; allowUnverifiedPrice:boolean; readMail?:boolean; registerInvoices?:boolean};
 export type Issue = {id:string;receiptId:string;message:string;at:string;resolved:boolean;resolution?:string};
 export type Workspace = {version:number; organization:string; tracking:boolean; products:Product[]; receipts:Receipt[]; invoices:Invoice[]; scans:Scan[]; profiles:Profile[]; allocations:Allocation[]; audit:Audit[]; issues:Issue[]; processed:string[]; agent?:AgentAuthority};
 export type ParsedCode = {code:string; lot?:string; serial?:string; expiry?:string};

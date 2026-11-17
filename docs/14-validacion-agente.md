@@ -26,6 +26,8 @@ Cuatro interruptores, apagados por defecto (`Workspace.agent`):
 - **Validar facturas conformes**: todas las unidades respaldadas y precio igual al acordado.
 - **…también si el precio no se puede comprobar**: solo con el anterior activo.
 
+- **Leer las facturas que llegan por correo** y **…registrar las que no dejan dudas**: actúan en la revisión programada del buzón (docs/10-correo.md).
+
 Un precio distinto, una diferencia de cantidad o una incidencia abierta nunca los valida el agente.
 
 ## Cómo actúa

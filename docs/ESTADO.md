@@ -144,3 +144,10 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - Panel «Autoridad del agente» en Configuración: cuatro permisos, apagados por defecto. Detalle en docs/14-validacion-agente.md.
 - 119 pruebas. Revisado visualmente con datos de ejemplo. Sin probar los clics a mano ni con datos reales. No escribe en Odoo.
 - Siguiente: escritura en Odoo (entrada sobre el pedido, lotes, factura en borrador), primero en base de pruebas; automatización del correo.
+
+
+## 2026-11-17 — Paso 6: correo automático
+- Revisión diaria programada de los buzones; lectura automática con IA y registro automático de facturas sin dudas, cada uno con su permiso en «Autoridad del agente» (apagados por defecto). Detalle en docs/10-correo.md.
+- Requiere `CRON_SECRET` en Vercel. Migración aditiva 007.
+- 124 pruebas. Revisado visualmente el panel y la bandeja con datos de ejemplo. **Sin probar con buzón ni API reales.**
+- Pendiente del plan: paso 5 (escritura en Odoo), que necesita base de pruebas y usuario con permisos. También: memoria de equivalencias de códigos de proveedor.

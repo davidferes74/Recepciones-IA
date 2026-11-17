@@ -401,3 +401,9 @@ html.intro-skip .welcome:not(.needs-login){display:none}
 @media(hover:hover) and (pointer:fine){.inbox-open:hover{background:var(--surface-tint)}.agent-tile:hover{box-shadow:var(--shadow-raised);border-color:var(--border-strong)}}
 @media(max-width:1200px){.inbox-metrics{grid-template-columns:1fr 1fr}}
 @media(max-width:900px){.inbox-open{grid-template-columns:42px minmax(0,1fr)}.inbox-status{grid-column:2}.inbox-item{flex-wrap:wrap;padding-bottom:10px}.inbox-actions{width:100%;padding-left:66px}}
+
+/* ---------- Autoridad: grupo de correo; lectura automática en la bandeja ---------- */
+.agent-group{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--border);font-size:.7rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted)}
+.agent-group+.agent-rule{border-top:0}
+.inbox-reading{display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:1px 8px;border-radius:var(--radius-pill);font-size:.72rem;font-weight:600;background:var(--accent-subtle);color:var(--accent-strong);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inbox-reading.warn{background:var(--warning-bg);color:var(--warning)}.inbox-reading.bad{background:var(--danger-bg);color:var(--danger)}

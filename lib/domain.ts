@@ -19,12 +19,12 @@ export const commandSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('testProfile'),profileId:id,raw:z.string().min(1).max(512),expected:text}),
  z.object({type:z.literal('activateProfile'),profileId:id,device:text}),
  z.object({type:z.literal('createReceipt'),supplier:text,reference:text,date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),lines:z.array(z.object({productId:id,expected:qty,lot:z.string().max(40).optional(),price:z.string().regex(/^\d{1,9}(\.\d{1,4})?$/).optional(),orderLineIds:z.array(z.number().int().positive()).max(50).optional()})).min(1).max(100),fileIds:z.array(id).max(20).default([]),order:z.object({id:z.number().int().positive(),name:text}).optional()}),
- z.object({type:z.literal('createInvoice'),supplier:text,reference:text,date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),receiptRefs:z.array(text).max(100),fileIds:z.array(id).max(20).optional(),lines:z.array(z.object({productId:id,quantity:qty,price:z.string().regex(/^\d{1,9}(\.\d{1,4})?$/).optional()})).min(1).max(100)}),
+ z.object({type:z.literal('createInvoice'),auto:z.boolean().optional(),supplier:text,reference:text,date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),receiptRefs:z.array(text).max(100),fileIds:z.array(id).max(20).optional(),lines:z.array(z.object({productId:id,quantity:qty,price:z.string().regex(/^\d{1,9}(\.\d{1,4})?$/).optional()})).min(1).max(100)}),
  z.object({type:z.literal('acceptMatch'),invoiceId:id}),
  z.object({type:z.literal('setInvoiceRefs'),invoiceId:id,receiptRefs:z.array(text).max(100)}),
  z.object({type:z.literal('validate'),kind:z.enum(['receipt','invoice']),id,note:z.string().trim().max(400).optional()}),
  z.object({type:z.literal('unvalidate'),kind:z.enum(['receipt','invoice']),id}),
- z.object({type:z.literal('agentAuthority'),authority:z.object({validateReceipts:z.boolean(),acceptProposals:z.boolean(),validateInvoices:z.boolean(),allowUnverifiedPrice:z.boolean()})}),
+ z.object({type:z.literal('agentAuthority'),authority:z.object({validateReceipts:z.boolean(),acceptProposals:z.boolean(),validateInvoices:z.boolean(),allowUnverifiedPrice:z.boolean(),readMail:z.boolean().default(false),registerInvoices:z.boolean().default(false)})}),
  z.object({type:z.literal('issue'),receiptId:id,message:text}),
  z.object({type:z.literal('resolveIssue'),issueId:id,resolution:text})
 ]);
@@ -82,7 +82,7 @@ export function priceCheck(s:Workspace,invoice:Invoice){
  return {status,lines,impact:lines.reduce((a,l)=>a.plus(l.impact),new Decimal(0)).toDecimalPlaces(2).toString()};
 }
 // ---------- Validación y autoridad del agente ----------
-export const noAuthority:AgentAuthority={validateReceipts:false,acceptProposals:false,validateInvoices:false,allowUnverifiedPrice:false};
+export const noAuthority:Required<AgentAuthority>={validateReceipts:false,acceptProposals:false,validateInvoices:false,allowUnverifiedPrice:false,readMail:false,registerInvoices:false};
 /** Retrato de lo que se valida en una factura: albaranes, cantidades y resultado del precio. */
 export function invoiceSignature(s:Workspace,f:Invoice){const sum=invoiceSummary(s,f),price=priceCheck(s,f);return [f.receiptRefs.join('|'),sum.total,sum.matched,price.status,price.impact].join(';');}
 /** ¿Está todo conforme? Cantidades respaldadas del todo y precio igual al acordado (o no comprobable, si se admite). */
@@ -111,7 +111,7 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
  const s=structuredClone(original);
  const receipt=(rid:string)=>{const r=s.receipts.find(x=>x.id===rid);if(!r)throw new DomainError('Recepción no encontrada.',404);return r;};
  const openReceipt=(rid:string)=>{const r=receipt(rid);if(r.status!=='open'&&r.status!=='partial')throw new DomainError('Esta recepción ya está cerrada.',409);return r;};
- let message='';
+ let message='',agentCommand=false;
  switch(c.type){
  case 'createProduct':{const errors=productErrors([c],s.products);if(errors.length)throw new DomainError(errors[0]);s.products.push({...c,id:commandId});message='Producto registrado · '+c.name;break;}
  case 'importProducts':{const errors=productErrors(c.products,s.products);if(errors.length)throw new DomainError(errors.slice(0,5).join(' '));s.products.push(...c.products.map((p,i)=>({...p,id:commandId+'-'+i})));message='Importación Excel · '+c.products.length+' productos creados';break;}
@@ -156,7 +156,7 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
  case 'testProfile':{const p=s.profiles.find(x=>x.id===c.profileId);if(!p)throw new DomainError('Perfil inexistente.');const parsed=readScan(c.raw,p);if(parsed.code!==c.expected)throw new DomainError('El código interpretado no coincide con el esperado.');p.testedVersion=p.version;p.testedCode=parsed.code;message='Prueba aislada correcta · '+p.name;break;}
  case 'activateProfile':{const p=s.profiles.find(x=>x.id===c.profileId);if(!p||p.testedVersion!==p.version)throw new DomainError('Realiza una prueba correcta de esta versión antes de activar.');p.state='validated';p.validatedDevice=c.device;message='Perfil validado por el usuario · '+p.name;break;}
  case 'createReceipt':{if(s.receipts.some(r=>r.supplier===c.supplier&&r.reference===c.reference))throw new DomainError('Ya existe este albarán para el proveedor.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');for(const pid of new Set(c.lines.map(l=>l.productId))){const same=c.lines.filter(l=>l.productId===pid);if(same.length<2)continue;const lots=same.map(l=>l.lot?.trim()||'');if(!s.tracking||s.products.find(p=>p.id===pid)?.tracking!=='lot'||lots.some(x=>!x)||new Set(lots).size!==lots.length)throw new DomainError('Para repetir un producto en el albarán, activa el seguimiento por lotes e indica un lote distinto en cada línea.');}s.receipts.unshift({id:commandId,supplier:c.supplier,reference:c.reference,date:c.date,status:'open',tracking:s.tracking,createdAt:now,fileIds:c.fileIds,...(c.order?{order:c.order}:{}),lines:c.lines.map((l,i)=>({...l,lot:l.lot?.trim()||undefined,id:commandId+'-'+i,received:'0'}))});message=(c.order?'Recepción abierta contra el pedido '+c.order.name+' · ':'Albarán registrado manualmente · ')+c.reference;break;}
- case 'createInvoice':if(s.invoices.some(f=>f.reference===c.reference&&f.supplier===c.supplier))throw new DomainError('Factura ya registrada.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');s.invoices.push({...c,id:commandId,lines:c.lines.map((l,i)=>({...l,id:commandId+'-'+i}))});message='Factura registrada manualmente · '+c.reference;break;
+ case 'createInvoice':if(s.invoices.some(f=>f.reference===c.reference&&f.supplier===c.supplier))throw new DomainError('Factura ya registrada.');if(c.lines.some(l=>!s.products.some(p=>p.id===l.productId)))throw new DomainError('Producto desconocido.');{const {auto,...data}=c;s.invoices.push({...data,id:commandId,lines:c.lines.map((l,i)=>({...l,id:commandId+'-'+i}))});agentCommand=Boolean(auto);message=(auto?'Agente · factura registrada desde el correo · ':'Factura registrada manualmente · ')+c.reference;break;}
  case 'acceptMatch':{const f=s.invoices.find(x=>x.id===c.invoiceId);if(!f)throw new DomainError('Factura no encontrada.',404);
   // Aceptar la propuesta la convierte en referencias explícitas: a partir de aquí la factura queda ligada a esos albaranes.
   const proposed=reconcile(s).filter(a=>a.invoiceId===f.id&&a.basis==='product');if(!proposed.length)throw new DomainError('No hay ninguna propuesta que aceptar para esta factura.');
@@ -171,10 +171,10 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
   f.validation={at:now,by:'human',signature:invoiceSignature(s,f),...(c.note?{note:c.note}:{}),...(exception?{exception:true}:{})};delete f.agentHold;message='Factura validada'+(exception?' con excepción':'')+' · '+f.reference;break;}
  case 'unvalidate':{const target=c.kind==='receipt'?receipt(c.id):s.invoices.find(x=>x.id===c.id);if(!target)throw new DomainError('Factura no encontrada.',404);if(!target.validation)throw new DomainError('No está validada.',409);delete target.validation;target.agentHold=true; // decisión humana: el agente no la vuelve a validar por su cuenta
   message='Validación deshecha · '+target.reference;break;}
- case 'agentAuthority':s.agent={...c.authority};message='Autoridad del agente · '+(Object.values(c.authority).some(Boolean)?[c.authority.validateReceipts&&'valida recepciones conformes',c.authority.acceptProposals&&'acepta emparejamientos completos',c.authority.validateInvoices&&'valida facturas conformes',c.authority.allowUnverifiedPrice&&'admite precio no comprobable'].filter(Boolean).join(', '):'sin permisos: todo pasa por una persona');break;
+ case 'agentAuthority':s.agent={...c.authority};message='Autoridad del agente · '+(Object.values(c.authority).some(Boolean)?[c.authority.validateReceipts&&'valida recepciones conformes',c.authority.acceptProposals&&'acepta emparejamientos completos',c.authority.validateInvoices&&'valida facturas conformes',c.authority.allowUnverifiedPrice&&'admite precio no comprobable',c.authority.readMail&&'lee las facturas del correo',c.authority.registerInvoices&&'registra facturas sin dudas'].filter(Boolean).join(', '):'sin permisos: todo pasa por una persona');break;
  case 'issue':receipt(c.receiptId);s.issues.push({id:commandId,receiptId:c.receiptId,message:c.message,at:now,resolved:false});message='Incidencia registrada · '+c.message;break;
  case 'resolveIssue':{const i=s.issues.find(i=>i.id===c.issueId);if(!i)throw new DomainError('Incidencia no encontrada.');i.resolved=true;i.resolution=c.resolution;message='Incidencia resuelta · '+c.resolution;break;}
  }
- s.audit.unshift({id:commandId,at:now,action:c.type,message});afterChange(s,now,commandId);
+ s.audit.unshift({id:commandId,at:now,action:c.type,message,...(agentCommand?{by:'agent' as const}:{})});afterChange(s,now,commandId);
  s.processed.push(commandId);s.version++;return s;
 }
