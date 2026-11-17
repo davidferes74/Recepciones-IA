@@ -3,7 +3,8 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {authorized,sameOrigin} from '@/lib/auth';
 import {getPool,org} from '@/lib/server-store';
-import {mailConfigSchema,encryptionReady,seal} from '@/lib/mail-config';
+import {mailConfigSchema,encryptionReady,seal,MailError} from '@/lib/mail-config';
+import {discoverMail} from '@/lib/mail-discover';
 import {testMailbox,inspectMailbox,captureMailbox} from '@/lib/mail-imap';
 import {googleReady,googleRedirect} from '@/lib/google-oauth';
 import {gmailLabels,gmailConfigSchema,captureGmail} from '@/lib/mail-gmail';
@@ -12,6 +13,7 @@ const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:{'C
 export async function GET(req:NextRequest){if(!authorized(req))return json({error:'Inicia sesión.'},401);try{const accounts=await getPool().query('SELECT id,name,email,provider,config,paused,last_sync,last_error FROM ria_mail_accounts WHERE organization_id=$1 ORDER BY created_at',[org()]);const items=await getPool().query('SELECT id,account_id,sender,subject,received_at,filename,status,detail,original IS NOT NULL AS downloadable FROM ria_mail_items WHERE organization_id=$1 ORDER BY created_at DESC LIMIT 100',[org()]);return json({accounts:accounts.rows,items:items.rows,encryptionReady:encryptionReady(),automatic:false,googleReady:googleReady(),googleRedirect});}catch{return json({error:'No se pudo cargar el correo. Comprueba la migración de base de datos.'},503);}}
 export async function POST(req:NextRequest){if(!authorized(req))return json({error:'Inicia sesión.'},401);if(!sameOrigin(req))return json({error:'Origen no permitido.'},403);try{
  const text=await req.text();if(text.length>10000)return json({error:'Solicitud demasiado grande.'},413);const body=JSON.parse(text);
+ if(body.action==='discover'){const email=z.email().max(254).parse(body.email);const d=await discoverMail(email);return json({provider:d.provider,host:d.host,detected:d.detected,googleReady:googleReady()});}
  if(['test','preview','save'].includes(body.action)){
  const config=mailConfigSchema.parse(body.config);if(!encryptionReady())return json({error:'Falta TOKEN_ENCRYPTION_KEY en el servidor. Configura la clave de cifrado antes de introducir credenciales.'},503);
  if(body.action==='preview')return json(await inspectMailbox(config));
@@ -26,4 +28,4 @@ export async function POST(req:NextRequest){if(!authorized(req))return json({err
  if(body.action==='capture'){const a=await getPool().query('SELECT provider FROM ria_mail_accounts WHERE id=$1 AND organization_id=$2',[id,org()]);return json(a.rows[0]?.provider==='gmail'?await captureGmail(id):await captureMailbox(id));}
  if(body.action==='pause'){const paused=z.boolean().parse(body.paused);await getPool().query('UPDATE ria_mail_accounts SET paused=$3 WHERE id=$1 AND organization_id=$2',[id,org(),paused]);return json({saved:true});}
  return json({error:'Acción no válida.'},400);
- }catch(e){if(e instanceof z.ZodError)return json({error:'Revisa los campos obligatorios y la fecha inicial.'},422);if((e as {code?:string})?.code==='23505')return json({error:'Ya existe una conexión para esta cuenta.'},409);return json({error:'No se completó la operación. Comprueba host seguro, usuario, contraseña, carpeta y conexión. No se muestran detalles privados del servidor.'},502);}}
+ }catch(e){if(e instanceof MailError)return json({error:e.message,kind:e.kind},502);if(e instanceof z.ZodError)return json({error:'Revisa los campos obligatorios y la fecha inicial.'},422);if((e as {code?:string})?.code==='23505')return json({error:'Ya existe una conexión para esta cuenta.'},409);return json({error:'No se completó la operación. Comprueba el servidor, el usuario, la contraseña y la carpeta. No se muestran detalles privados del servidor.'},502);}}

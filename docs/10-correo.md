@@ -22,3 +22,11 @@ No prometer operación real sin test del buzón. No se utilizó la conexión Gma
 ## Verificación
 43 tests (incluye autenticación de cifrado, aislamiento por organización, clave ausente, host spoofing/red privada y esquema). Build y TypeScript completos. Prueba real IMAP, concurrencia en PostgreSQL y navegador/PDA pendientes; no hay credenciales de buzón disponibles. Chromium del entorno no permite ejecutar pruebas de UI.
 Referencias: https://imapflow.com/docs/api/imapflow-client/ y https://nodemailer.com/extras/mailparser. Versiones fijadas en lockfile.
+
+## 17/11/2026 — Asistente para cualquier correo externo
+- El alta deja de estar ligada a un proveedor. «Conectar otro correo» abre un asistente de tres pasos: dirección → acceso → qué revisar.
+- Detección sin credenciales y sin terceros (lib/mail-discover.ts): catálogo de proveedores conocidos por dominio (lib/mail-providers.ts), registro MX para dominios de empresa, registro SRV `_imaps._tcp`, y comprobación TLS de `imap.<dominio>` y `mail.<dominio>` en el puerto 993. Si nada funciona, se pide el servidor con una explicación.
+- Google se deriva al botón de OAuth (con alternativa de contraseña de aplicación). Microsoft se informa como no disponible: ya no admite usuario y contraseña.
+- Seguridad: se acepta cualquier nombre de servidor público; se rechazan IP literales y nombres internos, se resuelve el nombre y se exige que todas sus direcciones sean públicas, con TLS verificado y solo puerto 993. `MAIL_IMAP_ALLOWED_HOSTS` deja de usarse.
+- Errores de conexión traducidos a mensajes claros (contraseña, servidor, certificado, tiempo de espera, carpeta) sin exponer respuestas del servidor.
+- No probado con un buzón real. Servidores que solo ofrecen STARTTLS en el puerto 143 no están soportados.

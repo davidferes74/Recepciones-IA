@@ -1,17 +1,18 @@
 import {ImapFlow} from 'imapflow';
 import {resolve4} from 'node:dns/promises';
 import {createHash,randomUUID} from 'node:crypto';
-import {allowedHost,publicIPv4,unseal,type MailConfig} from './mail-config';
+import {allowedHost,publicIPv4,unseal,MailError,describeMailError,type MailConfig} from './mail-config';
 import {getPool,org} from './server-store';
 import {readMessage,excludedItem,maxMessageBytes,type MailItem} from './mail-items';
 export async function withMailbox<T>(config:MailConfig,work:(client:ImapFlow)=>Promise<T>):Promise<T>{
- if(!allowedHost(config.host))throw Error('Servidor no permitido. Usa el host seguro de Dinahosting; otros hosts requieren MAIL_IMAP_ALLOWED_HOSTS.');
- const addresses=await resolve4(config.host);if(!addresses.length||addresses.some(ip=>!publicIPv4(ip)))throw Error('Servidor no válido.');
+ if(!allowedHost(config.host))throw new MailError('Ese nombre de servidor no es válido. Debe ser un nombre público como imap.tuproveedor.com.','host');
+ let addresses:string[];try{addresses=await resolve4(config.host);}catch(e){throw describeMailError(e);}
+ if(!addresses.length||addresses.some(ip=>!publicIPv4(ip)))throw new MailError('Ese servidor no es accesible desde internet.','host');
  const client=new ImapFlow({host:addresses[0],servername:config.host,port:993,secure:true,auth:{user:config.username,pass:config.password},logger:false,disableAutoIdle:true,disableCompression:true,connectionTimeout:10000,greetingTimeout:10000,socketTimeout:15000,maxLiteralSize:6*1024*1024,maxResponseSize:7*1024*1024,tls:{rejectUnauthorized:true,minVersion:'TLSv1.2'}});
  client.on('error',()=>{});const timeout=setTimeout(()=>client.close(),45000);
- try{await client.connect();return await work(client);}finally{clearTimeout(timeout);client.close();}
+ try{try{await client.connect();}catch(e){throw describeMailError(e);}return await work(client);}finally{clearTimeout(timeout);client.close();}
 }
-export async function testMailbox(config:MailConfig){return withMailbox(config,async c=>{const folders=(await c.list()).filter(f=>!f.flags.has('\\Noselect')).map(f=>f.path).slice(0,100);const lock=await c.getMailboxLock(config.folder,{readOnly:true});lock.release();return folders;});}
+export async function testMailbox(config:MailConfig){return withMailbox(config,async c=>{const folders=(await c.list()).filter(f=>!f.flags.has('\\Noselect')).map(f=>f.path).slice(0,100);let lock;try{lock=await c.getMailboxLock(config.folder,{readOnly:true});}catch{throw new MailError('La conexión funciona, pero no existe la carpeta «'+config.folder+'». Elige una de la lista.','folder');}lock.release();return folders;});}
 export async function inspectMailbox(config:MailConfig,cursor=0,validity?:string){return withMailbox(config,async c=>{
  const lock=await c.getMailboxLock(config.folder,{readOnly:true});try{
  const current=String(c.mailbox&&c.mailbox.uidValidity);const after=current===validity?cursor:0;

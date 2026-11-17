@@ -87,3 +87,8 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - Lógica de IA común en lib/ai-reader.ts (caché, límite diario compartido de 10, guardado del original). Sin migración SQL.
 - 71 pruebas. **No probado contra la API real de Anthropic**: no hay clave en el entorno de desarrollo. Validar en producción con un documento y una etiqueta de prueba antes de usarlo con documentos reales.
 - Pendiente: separar varios documentos de un mismo PDF por páginas, registro de abonos, fotografía de etiqueta en la demo.
+
+
+## 2026-11-17 — Conexión guiada de cualquier correo
+- Asistente de tres pasos para conectar cualquier buzón IMAP sin conocimientos técnicos, con detección automática del servidor y mensajes de error comprensibles. Se retiran las referencias a un proveedor concreto. Detalle en docs/10-correo.md.
+- 75 pruebas. Pendiente: validación con buzones reales de varios proveedores; conexión con Microsoft (requiere OAuth propio).
