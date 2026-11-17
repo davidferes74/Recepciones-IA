@@ -1,5 +1,5 @@
 export type Tracking = 'none'|'lot'|'serial';
-export type Product = {id:string; name:string; sku:string; code:string; unit:string; tracking:Tracking; packCode?:string; packQuantity?:string};
+export type Product = {id:string; name:string; sku:string; code:string; unit:string; tracking:Tracking; packCode?:string; packQuantity?:string; source?:'odoo'; externalId?:string; archived?:boolean};
 export type Line = {id:string; productId:string; expected:string; received:string; lot?:string; price?:string; confirmed?:string};
 export type Receipt = {id:string; supplier:string; reference:string; date:string; status:'open'|'partial'|'confirmed'|'exceptions'; tracking:boolean; lines:Line[]; createdAt:string; closedAt?:string; closeReason?:string; partialAt?:string; fileIds:string[]};
 export type Invoice = {id:string; supplier:string; reference:string; date:string; receiptRefs:string[]; fileIds?:string[]; lines:{id:string; productId:string; quantity:string; price?:string}[]};

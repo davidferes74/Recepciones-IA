@@ -92,3 +92,10 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 ## 2026-11-17 — Conexión guiada de cualquier correo
 - Asistente de tres pasos para conectar cualquier buzón IMAP sin conocimientos técnicos, con detección automática del servidor y mensajes de error comprensibles. Se retiran las referencias a un proveedor concreto. Detalle en docs/10-correo.md.
 - 75 pruebas. Pendiente: validación con buzones reales de varios proveedores; conexión con Microsoft (requiere OAuth propio).
+
+
+## 2026-11-17 — Conexión con Odoo y catálogo compacto
+- Tarjeta Odoo en Conexiones. Accesos heredados de la app principal por variables `ODOO_*` (las de Sentidiño BI) o propios con clave API cifrada. Solo lectura. Detalle en docs/12-odoo.md.
+- «Sincronizar productos» trae los productos comprables y activos de Odoo y los fusiona con el catálogo sin romper recepciones (comando `syncProducts`). Migración aditiva 005.
+- Configuración: el catálogo pasa a una tarjeta compacta con «Ver productos» (ventana con buscador). En albaranes y facturas, el producto se elige en esa misma ventana en lugar de una lista desplegable.
+- 84 pruebas. **No probado contra un Odoo real.**

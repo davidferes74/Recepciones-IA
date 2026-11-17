@@ -199,3 +199,34 @@ input:hover:not(:focus),select:hover:not(:focus),textarea:hover:not(:focus){bord
 .wizard-sample-row{padding:7px 0;border-top:1px solid var(--border)}.wizard-sample-row strong,.wizard-sample-row small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wizard-sample-row small{color:var(--text-muted)}
 @media(max-width:640px){.wizard-steps li{flex-direction:column;gap:4px;text-align:center;font-size:.72rem;padding:8px 4px}}
 .wizard-help li:only-child{list-style:none;margin-left:-20px}
+
+/* ---------- Catálogo compacto, selector de productos y Odoo ---------- */
+.catalog-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px;margin-top:24px;flex-wrap:wrap}
+.catalog-main{display:flex;align-items:center;gap:14px;min-width:0}.catalog-main p{margin:2px 0 0;color:var(--text-muted)}
+.catalog-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.catalog-actions small{color:var(--text-muted);max-width:260px}
+.connection-card{display:flex;flex-direction:column;align-items:flex-start;gap:6px}.connection-card h3,.connection-card p{margin:0}.connection-card .button{margin-top:auto}
+.picker{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--background);font:inherit;font-size:16px;font-weight:500;color:var(--foreground);text-align:left}
+.picker span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker svg{color:var(--text-muted)}
+.picker.empty{color:var(--text-muted);border-style:dashed}
+.browser{display:flex;flex-direction:column;gap:10px}
+.browser-search{flex-direction:row;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-control);padding:0 12px;background:var(--background);color:var(--text-muted)}
+.browser-search input{border:0;background:transparent;box-shadow:none;padding-left:0}.browser-search input:focus{box-shadow:none}
+.browser-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-subtle)}
+.browser-count{margin:0;font-size:.78rem;color:var(--text-muted)}
+.browser-list{display:flex;flex-direction:column;max-height:min(52dvh,460px);overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-control)}
+.browser-row{display:flex;align-items:center;gap:12px;padding:9px 12px;min-height:54px;border:0;border-top:1px solid var(--border);background:transparent;text-align:left;font:inherit;color:inherit;width:100%}
+.browser-row:first-child{border-top:0}
+button.browser-row{cursor:pointer}button.browser-row.selected{background:var(--accent-subtle)}
+.browser-icon{display:grid;place-items:center;width:32px;height:32px;flex:none;border-radius:9px;background:var(--surface-muted);color:var(--text-muted)}
+.browser-row.selected .browser-icon{background:var(--accent);color:var(--accent-foreground)}
+.browser-main{flex:1;min-width:0}.browser-main strong,.browser-main small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.browser-main small{color:var(--text-muted);font-size:.78rem}
+.browser-tags{display:flex;gap:5px;flex:none}
+.chip{font-size:.7rem;color:var(--text-secondary);background:var(--background);border:1px solid var(--border);border-radius:var(--radius-pill);padding:2px 8px;white-space:nowrap}
+.chip.odoo{color:var(--tone-violet);border-color:color-mix(in oklab,var(--tone-violet) 35%,var(--surface))}
+.browser-empty{margin:0;padding:22px 14px;color:var(--text-muted)}
+.sync-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.sync-summary div{border:1px solid var(--border);border-radius:var(--radius-control);padding:10px;text-align:center}
+.sync-summary strong{display:block;font-family:var(--font-display);font-size:1.3rem;font-variant-numeric:tabular-nums}.sync-summary span{font-size:.72rem;color:var(--text-muted)}
+.sync-skipped{margin:4px 0 0;padding-left:18px;max-height:140px;overflow-y:auto}
+@media(hover:hover) and (pointer:fine){button.browser-row:hover{background:var(--surface-muted)}.picker:hover{border-color:var(--border-strong)}}
+@media(max-width:640px){.browser-tags{display:none}.sync-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.catalog-actions .button{flex:1}}

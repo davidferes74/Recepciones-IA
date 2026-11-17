@@ -1,4 +1,5 @@
 import {productInputSchema,productErrors} from './products';
+import {syncedProductSchema,mergeOdooProducts,maxOdooProducts} from './odoo-products';
 import Decimal from 'decimal.js';
 import {z} from 'zod';
 import {parseScan} from './scanner';
@@ -9,6 +10,7 @@ const profileSchema=z.object({id,name:text,version:z.number().int().positive(),p
 export const commandSchema=z.discriminatedUnion('type',[
  productInputSchema.extend({type:z.literal('createProduct')}),
  z.object({type:z.literal('importProducts'),products:z.array(productInputSchema).min(1).max(1000)}),
+ z.object({type:z.literal('syncProducts'),products:z.array(syncedProductSchema).min(1).max(maxOdooProducts)}),
  z.object({type:z.literal('scan'),receiptId:id,raw:z.string().min(1).max(512),profileId:id,lot:z.string().max(40).optional(),serial:z.string().max(40).optional(),allowExcess:z.boolean().optional(),reason:z.string().max(400).optional(),evidenceId:z.string().uuid().optional()}),
  z.object({type:z.literal('undo'),receiptId:id}),
  z.object({type:z.literal('confirm'),receiptId:id,reason:z.string().max(400).optional(),shortage:z.enum(['pending','missing']).optional()}),
@@ -60,10 +62,11 @@ export function applyCommand(original:Workspace,envelope:Envelope,now=new Date()
  switch(c.type){
  case 'createProduct':{const errors=productErrors([c],s.products);if(errors.length)throw new DomainError(errors[0]);s.products.push({...c,id:commandId});message='Producto registrado · '+c.name;break;}
  case 'importProducts':{const errors=productErrors(c.products,s.products);if(errors.length)throw new DomainError(errors.slice(0,5).join(' '));s.products.push(...c.products.map((p,i)=>({...p,id:commandId+'-'+i})));message='Importación Excel · '+c.products.length+' productos creados';break;}
+ case 'syncProducts':{const m=mergeOdooProducts(s.products,c.products);s.products=m.products;message=`Catálogo sincronizado con Odoo · ${m.created} nuevos, ${m.updated} actualizados, ${m.linked} enlazados, ${m.archived} archivados`+(m.conflicts?`, ${m.conflicts} en conflicto`:'');break;}
  case 'scan':{
   const r=openReceipt(c.receiptId),p=s.profiles.find(x=>x.id===c.profileId);if(!p)throw new DomainError('Selecciona un perfil de lector.');
   if(p.state!=='validated')throw new DomainError('Prueba y activa el perfil del lector antes de recibir.');
-  const parsed=readScan(c.raw,p);const found=s.products.filter(x=>x.code===parsed.code||x.code.padStart(14,'0')===parsed.code||x.packCode===parsed.code);
+  const parsed=readScan(c.raw,p);const found=s.products.filter(x=>!x.archived&&(x.code===parsed.code||x.code.padStart(14,'0')===parsed.code||x.packCode===parsed.code));
   if(found.length!==1)throw new DomainError('Código desconocido o ambiguo. No se ha sumado mercancía.');
   const product=found[0],lines=r.lines.filter(l=>l.productId===product.id);
   if(!lines.length)throw new DomainError('Producto ausente del albarán. Revisión necesaria.');

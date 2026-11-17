@@ -1,0 +1,29 @@
+# 12 · Conexión con Odoo (solo lectura)
+
+## Objetivo
+Usar en Recepciones-IA los mismos productos que en Odoo y prepararla para integrarse como módulo de Sentidiño BI, que ya tiene acceso a Odoo.
+
+## De dónde salen los accesos
+1. **App principal (heredados).** Si existen las variables `ODOO_URL`, `ODOO_DB`, `ODOO_LOGIN` y `ODOO_API_KEY` (y opcionalmente `ODOO_COMPANY_ID`), se usan esas. Son las mismas que utiliza Sentidiño BI: al desplegar esta app junto a la principal, o al copiarle esas variables, queda acoplada sin configurar nada. En ese caso la tarjeta lo indica y no deja editar ni guardar claves.
+2. **Propios.** Si no existen, el usuario conecta desde Configuración → Conexiones → Odoo con dirección, base de datos, usuario y clave API. La clave se guarda cifrada (`ria_integrations`, `TOKEN_ENCRYPTION_KEY`).
+
+Los heredados mandan sobre los propios.
+
+## Qué se lee
+- `product.product` con `purchase_ok = true` y `active = true`: nombre, referencia interna, código de barras, unidad de medida y seguimiento (lote, serie o ninguno). Máximo 3000 productos por sincronización.
+- `product.packaging` con código de barras, si el modelo existe en esa versión: primer embalaje como código de caja con su cantidad.
+- Solo `search_read`. La app no escribe en Odoo.
+- Transportes: `/jsonrpc` clásico y, si la instancia lo ha retirado (Odoo 19+), `/json/2` con la clave como Bearer. Mismo criterio que lib `odoo.js` de Sentidiño BI.
+
+## Cómo se fusiona con el catálogo
+- Producto ya enlazado: se actualiza conservando su id.
+- Producto manual con la misma referencia o código: se enlaza a Odoo y conserva su id (las recepciones existentes siguen siendo válidas).
+- Producto nuevo: se crea.
+- Producto enlazado que ya no viene de Odoo: se archiva, no se borra. Un producto archivado no se puede escanear ni elegir.
+- Sin código de barras se usa la referencia interna como código. Sin ninguno de los dos, con código repetido en Odoo o en conflicto con otro producto del catálogo, se omite y se informa.
+
+## Límites y pendientes
+- Sincronización manual («Sincronizar productos ahora»); la periódica queda pendiente.
+- No probado contra una instancia real de Odoo. La dirección introducida por el usuario debe ser pública y HTTPS; la heredada no se restringe.
+- Sin conexión a Odoo el catálogo sigue siendo manual (alta individual o Excel).
+- Pendiente: proveedores, pedidos de compra y albaranes de Odoo; escritura de recepciones en Odoo (fuera de alcance por ahora).
