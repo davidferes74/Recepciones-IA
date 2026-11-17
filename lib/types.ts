@@ -1,7 +1,7 @@
 export type Tracking = 'none'|'lot'|'serial';
 export type Product = {id:string; name:string; sku:string; code:string; unit:string; tracking:Tracking; packCode?:string; packQuantity?:string; source?:'odoo'; externalId?:string; archived?:boolean};
-export type Line = {id:string; productId:string; expected:string; received:string; lot?:string; price?:string; confirmed?:string};
-export type Receipt = {id:string; supplier:string; reference:string; date:string; status:'open'|'partial'|'confirmed'|'exceptions'; tracking:boolean; lines:Line[]; createdAt:string; closedAt?:string; closeReason?:string; partialAt?:string; fileIds:string[]};
+export type Line = {id:string; productId:string; expected:string; received:string; lot?:string; price?:string; confirmed?:string; orderLineIds?:number[]};
+export type Receipt = {id:string; supplier:string; reference:string; date:string; status:'open'|'partial'|'confirmed'|'exceptions'; tracking:boolean; lines:Line[]; createdAt:string; closedAt?:string; closeReason?:string; partialAt?:string; fileIds:string[]; order?:{id:number;name:string}};
 export type Invoice = {id:string; supplier:string; reference:string; date:string; receiptRefs:string[]; fileIds?:string[]; lines:{id:string; productId:string; quantity:string; price?:string}[]};
 export type Scan = {id:string; receiptId:string; lineId:string; raw:string; quantity:string; lot?:string; serial?:string; profileId?:string; profileVersion?:number; reversed:boolean; confirmed?:boolean; evidenceId?:string; at:string};
 export type Profile = {id:string; name:string; version:number; prefix:string; suffix:string; terminator:'Enter'|'Tab'; parser:'plain'|'gs1'|'delimited'; delimiter:string; codePosition:number; lotPosition:number; serialPosition:number; quantity:string; state:'draft'|'validated'; validatedDevice?:string; testedVersion?:number; testedCode?:string};

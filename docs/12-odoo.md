@@ -42,3 +42,11 @@ Objetivo acordado: la app valida entradas y facturas y, más adelante, escribe e
 - Antes de leer cada modelo se pregunta qué campos existen (`fields_get`) y solo se piden esos: los nombres cambian entre Odoo 17, 19 y 20 (p. ej. `product_uom` / `product_uom_id`).
 - Vistas: selector en Recepciones (Recepciones · Pedidos por recibir · Entradas en Odoo) y en Facturas (Facturas recibidas · Facturas en Odoo). La demostración enseña datos de ejemplo marcados como tales.
 - Sin probar contra un Odoo real. Siguiente paso: recepción contra el pedido de Odoo.
+
+## Paso 2 (17/11/2026) — Recepción contra un pedido de Odoo
+- En «Pedidos por recibir», cada pedido tiene «Recibir este pedido»: pide el número y la fecha del albarán y propone, por producto, lo que queda por llegar. El operario ajusta lo que trae esta entrega y se abre una recepción normal de la app (escaneo, lotes, parcial, incidencias) ligada al pedido.
+- Lo pendiente de cada producto = pendiente en Odoo − lo que la app ya tiene para ese pedido (lo esperado en recepciones abiertas; lo realmente recibido en las cerradas). Evita recibir dos veces lo mismo mientras la entrada no esté escrita en Odoo. Cálculo en lib/order-receive.ts.
+- Correspondencia línea de pedido → producto del catálogo: por id de Odoo si el producto está sincronizado y, si no, por referencia interna exacta. Sin correspondencia, la línea no se puede recibir y se ofrece sincronizar el catálogo. Nunca por nombre.
+- La recepción guarda `order` (id y nombre del pedido) y, por línea, `orderLineIds` y el precio acordado, para la validación y la escritura posteriores. Campos opcionales; sin migración.
+- Un pedido con el mismo producto en varias líneas se recibe como una sola línea.
+- Sigue sin escribirse nada en Odoo. Pendiente: leer el albarán con IA para proponer cantidades, y la escritura de la entrada.

@@ -2,7 +2,7 @@
 // lo usan el servidor (lib/odoo.ts), las vistas y las pruebas. Las cantidades y los importes viajan como texto
 // con decimales fijos para no arrastrar errores de coma flotante hasta la conciliación.
 export type OdooKind='orders'|'receipts'|'bills'|'suppliers';
-export type OrderLine={id:number;productId:number|null;product:string;description:string;ordered:string;received:string;invoiced:string;pending:string;price:string;uom:string};
+export type OrderLine={id:number;productId:number|null;productRef:string;product:string;description:string;ordered:string;received:string;invoiced:string;pending:string;price:string;uom:string};
 export type PurchaseOrder={id:number;name:string;supplierId:number|null;supplier:string;supplierRef:string;date:string|null;planned:string|null;total:string;currency:string;receiptStatus:'pending'|'partial'|'full';invoiceStatus:string;ordered:string;received:string;pending:string;lines:OrderLine[]};
 export type OdooReceipt={id:number;name:string;supplierId:number|null;supplier:string;origin:string;state:string;scheduled:string|null;done:string|null;orderId:number|null};
 export type OdooBill={id:number;name:string;ref:string;supplierId:number|null;supplier:string;date:string|null;due:string|null;state:string;paymentState:string;total:string;untaxed:string;currency:string;origin:string;type:'invoice'|'refund'};
@@ -12,6 +12,7 @@ const text=(v:unknown)=>typeof v==='string'?v.trim():'';
 const m2o=(v:unknown)=>Array.isArray(v)&&v.length?{id:Number(v[0])||null,name:text(v[1])}:{id:null,name:''};
 // Odoo antepone la referencia interna al nombre: «[REF] Nombre». Aquí solo interesa el nombre.
 const productName=(v:unknown)=>m2o(v).name.replace(/^\[[^\]]*\]\s*/,'');
+const productRef=(v:unknown)=>/^\[([^\]]+)\]/.exec(m2o(v).name)?.[1].trim()||'';
 /** Número de Odoo → texto con decimales fijos, sin notación científica. */
 export function fixed(v:unknown,decimals:number){const raw=typeof v==='number'?v:Number(v),n=Number.isFinite(raw)?raw:0;const s=n.toFixed(decimals);return decimals?s.replace(/0+$/,'').replace(/\.$/,'')||'0':s;}
 const money=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)?n.toFixed(2):'0.00';};
@@ -24,7 +25,7 @@ export function normalizeOrders(orders:Row[],lines:Row[]):PurchaseOrder[]{
   if(l.display_type)continue;                       // secciones y notas del pedido: no son mercancía
   const orderId=m2o(l.order_id).id;if(!orderId)continue;
   const ordered=Number(l.product_qty)||0,received=Number(l.qty_received)||0;
-  const line:OrderLine={id:Number(l.id),productId:m2o(l.product_id).id,product:productName(l.product_id)||text(l.name),description:text(l.name),ordered:fixed(ordered,3),received:fixed(received,3),invoiced:fixed(l.qty_invoiced,3),pending:fixed(Math.max(0,ordered-received),3),price:fixed(l.price_unit,4),uom:m2o(l.product_uom_id).name||m2o(l.product_uom).name};
+  const line:OrderLine={id:Number(l.id),productId:m2o(l.product_id).id,productRef:productRef(l.product_id),product:productName(l.product_id)||text(l.name),description:text(l.name),ordered:fixed(ordered,3),received:fixed(received,3),invoiced:fixed(l.qty_invoiced,3),pending:fixed(Math.max(0,ordered-received),3),price:fixed(l.price_unit,4),uom:m2o(l.product_uom_id).name||m2o(l.product_uom).name};
   byOrder.set(orderId,[...(byOrder.get(orderId)||[]),line]);
  }
  return orders.map(o=>{const id=Number(o.id),ls=byOrder.get(id)||[],pending=sum(ls.map(l=>l.pending)),received=sum(ls.map(l=>l.received));

@@ -125,3 +125,8 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - Hecho: lectura de pedidos por recibir, entradas, facturas y proveedores de Odoo, con vistas propias. Detalle en docs/12-odoo.md.
 - 95 pruebas. Revisado visualmente con datos de ejemplo. **Sin probar contra un Odoo real.**
 - Siguiente: recepción contra pedido; emparejamiento de facturas sin número de albarán y alerta de precios; bandeja de validación y autoridad del agente; escritura en Odoo (primero en base de pruebas); automatización del correo.
+
+
+## 2026-11-17 — Paso 2: recibir contra un pedido de Odoo
+- «Recibir este pedido» abre una recepción de la app ligada al pedido, con lo pendiente calculado y el precio acordado guardado. Detalle en docs/12-odoo.md.
+- 100 pruebas. Revisado visualmente con datos de ejemplo (pedido desplegado y formulario). Sin probar contra un Odoo real ni el flujo completo a mano. No se escribe en Odoo.
