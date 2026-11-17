@@ -4,7 +4,7 @@
 Usar en Recepciones-IA los mismos productos que en Odoo y prepararla para integrarse como módulo de Sentidiño BI, que ya tiene acceso a Odoo.
 
 ## De dónde salen los accesos
-1. **App principal (heredados).** Si existen las variables `ODOO_URL`, `ODOO_DB`, `ODOO_LOGIN` y `ODOO_API_KEY` (y opcionalmente `ODOO_COMPANY_ID`), se usan esas. Son las mismas que utiliza Sentidiño BI: al desplegar esta app junto a la principal, o al copiarle esas variables, queda acoplada sin configurar nada. En ese caso la tarjeta lo indica y no deja editar ni guardar claves.
+1. **App principal (heredados).** Se leen con la misma precedencia que Sentidiño BI: primero su fichero `data/config.json` (el que crea su asistente; se localiza con `DATA_DIR`, la variable que ya usa el BI, o con `SENTIDINO_BI_CONFIG` como ruta completa) y, para lo que falte, sus variables de entorno. Si existen las variables `ODOO_URL`, `ODOO_DB`, `ODOO_LOGIN` y `ODOO_API_KEY` (y opcionalmente `ODOO_COMPANY_ID`), se usan esas. Son las mismas que utiliza Sentidiño BI: al desplegar esta app junto a la principal, o al copiarle esas variables, queda acoplada sin configurar nada. En ese caso la tarjeta lo indica y no deja editar ni guardar claves.
 2. **Propios.** Si no existen, el usuario conecta desde Configuración → Conexiones → Odoo con dirección, base de datos, usuario y clave API. La clave se guarda cifrada (`ria_integrations`, `TOKEN_ENCRYPTION_KEY`).
 
 Los heredados mandan sobre los propios.
@@ -27,3 +27,8 @@ Los heredados mandan sobre los propios.
 - No probado contra una instancia real de Odoo. La dirección introducida por el usuario debe ser pública y HTTPS; la heredada no se restringe.
 - Sin conexión a Odoo el catálogo sigue siendo manual (alta individual o Excel).
 - Pendiente: proveedores, pedidos de compra y albaranes de Odoo; escritura de recepciones en Odoo (fuera de alcance por ahora).
+
+## Acoplamiento como módulo de Sentidiño BI
+Decisión del propietario (17/11/2026): esta app se integrará en el código de Sentidiño BI como un módulo más que opera de forma autónoma.
+- Lo ya preparado: accesos a Odoo compartidos (fichero y variables del BI), mismo sistema visual y misma clave de tema.
+- Lo que falta para el acoplamiento real: alta del módulo en `src/catalogo-modulos.js` del BI (clave, nombre, prefijo de API), sesión compartida entre ambas (hoy cada una tiene su propio acceso) y decidir cómo conviven los dos servidores: el BI es Express con JavaScript plano y esta app es Next.js con PostgreSQL.

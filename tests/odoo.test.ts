@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
+import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {normalizeOdooProducts,mergeOdooProducts,type SyncedProduct} from '../lib/odoo-products';
 import {odooConfigSchema,inheritedConfig} from '../lib/odoo';
 import {applyCommand,type Command} from '../lib/domain';
@@ -46,3 +49,13 @@ test('parent app credentials are inherited only when the four variables are pres
   Object.assign(process.env,{ODOO_URL:'https://bi.odoo.com/',ODOO_DB:'bi',ODOO_LOGIN:'lector'});assert.equal(inheritedConfig(),null);
   process.env.ODOO_API_KEY='clave';process.env.ODOO_COMPANY_ID='3';assert.deepEqual(inheritedConfig(),{url:'https://bi.odoo.com',db:'bi',login:'lector',apiKey:'clave',companyId:3});
  }finally{for(const k of keys){if(old[k]===undefined)delete process.env[k];else process.env[k]=old[k];}}});
+test('parent app config file is inherited first, completed with its environment variables',()=>{
+ const keys=['ODOO_URL','ODOO_DB','ODOO_LOGIN','ODOO_API_KEY','ODOO_COMPANY_ID','DATA_DIR','SENTIDINO_BI_CONFIG'] as const,old=Object.fromEntries(keys.map(k=>[k,process.env[k]])),dir=mkdtempSync(join(tmpdir(),'ria-bi-'));
+ try{for(const k of keys)delete process.env[k];
+  writeFileSync(join(dir,'config.json'),JSON.stringify({odoo:{url:'https://fichero.odoo.com/',db:'fichero',login:'lector',apiKey:'clave-fichero',companyId:2},claude:{apiKey:'no-se-usa'}}));
+  process.env.DATA_DIR=dir;assert.deepEqual(inheritedConfig(),{url:'https://fichero.odoo.com',db:'fichero',login:'lector',apiKey:'clave-fichero',companyId:2});
+  Object.assign(process.env,{ODOO_URL:'https://entorno.odoo.com',ODOO_DB:'entorno',ODOO_LOGIN:'otro',ODOO_API_KEY:'clave-entorno'});assert.equal(inheritedConfig()?.apiKey,'clave-fichero'); // el fichero manda, como en el BI
+  writeFileSync(join(dir,'config.json'),JSON.stringify({odoo:{url:'https://fichero.odoo.com'}}));assert.deepEqual(inheritedConfig(),{url:'https://fichero.odoo.com',db:'entorno',login:'otro',apiKey:'clave-entorno',companyId:null});
+  writeFileSync(join(dir,'config.json'),'{no es json');assert.equal(inheritedConfig()?.url,'https://entorno.odoo.com');   // fichero ilegible: se ignora
+  delete process.env.DATA_DIR;process.env.SENTIDINO_BI_CONFIG=join(dir,'no-existe.json');assert.equal(inheritedConfig()?.db,'entorno');
+ }finally{rmSync(dir,{recursive:true,force:true});for(const k of keys){if(old[k]===undefined)delete process.env[k];else process.env[k]=old[k];}}});

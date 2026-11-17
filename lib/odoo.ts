@@ -1,4 +1,6 @@
 import {resolve4} from 'node:dns/promises';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
 import {z} from 'zod';
 import {getPool,org} from './server-store';
 import {allowedHost,publicIPv4,seal,unseal,encryptionReady} from './mail-config';
@@ -11,7 +13,16 @@ export type OdooSource='inherited'|'own';
 export class OdooError extends Error{constructor(message:string,public status=502){super(message);}}
 export const odooConfigSchema=z.object({url:z.string().trim().max(300).transform(v=>v.replace(/\/+$/,'')).pipe(z.url({protocol:/^https$/})),db:z.string().trim().min(1).max(120),login:z.string().trim().min(1).max(254),apiKey:z.string().min(1).max(400),companyId:z.number().int().positive().nullable().default(null)});
 const READ_ONLY=new Set(['search_read','search_count']);
-export function inheritedConfig():OdooConfig|null{const e=process.env;if(!e.ODOO_URL||!e.ODOO_DB||!e.ODOO_LOGIN||!e.ODOO_API_KEY)return null;return {url:e.ODOO_URL.replace(/\/+$/,''),db:e.ODOO_DB,login:e.ODOO_LOGIN,apiKey:e.ODOO_API_KEY,companyId:Number(e.ODOO_COMPANY_ID)||null};}
+// Accesos de la app principal, con su misma precedencia: primero su fichero de configuración (el que crea el
+// asistente de Sentidiño BI en data/config.json) y, para lo que falte, sus variables de entorno.
+// El fichero se localiza con SENTIDINO_BI_CONFIG (ruta completa) o con DATA_DIR, la variable que ya usa el BI.
+function parentFile():{url?:unknown;db?:unknown;login?:unknown;apiKey?:unknown;companyId?:unknown}{
+ const file=process.env.SENTIDINO_BI_CONFIG||(process.env.DATA_DIR?join(process.env.DATA_DIR,'config.json'):'');if(!file)return {};
+ try{const parsed=JSON.parse(readFileSync(file,'utf8'));return parsed&&typeof parsed.odoo==='object'&&parsed.odoo?parsed.odoo:{};}catch{return {};}
+}
+export function inheritedConfig():OdooConfig|null{const f=parentFile(),e=process.env,pick=(a:unknown,b?:string)=>(typeof a==='string'&&a.trim()?a.trim():b||'');
+ const url=pick(f.url,e.ODOO_URL).replace(/\/+$/,''),db=pick(f.db,e.ODOO_DB),login=pick(f.login,e.ODOO_LOGIN),apiKey=pick(f.apiKey,e.ODOO_API_KEY);
+ if(!url||!db||!login||!apiKey)return null;return {url,db,login,apiKey,companyId:Number(f.companyId)||Number(e.ODOO_COMPANY_ID)||null};}
 type Row={config:{url?:string;db?:string;login?:string;companyId?:number|null;lastSync?:string;lastResult?:unknown};secret:string|null};
 async function row():Promise<Row|null>{const r=await getPool().query("SELECT config,secret FROM ria_integrations WHERE organization_id=$1 AND kind='odoo'",[org()]);return r.rows[0]||null;}
 // Los accesos de la app principal mandan; si no existen, se usan los guardados en esta app (cifrados).
