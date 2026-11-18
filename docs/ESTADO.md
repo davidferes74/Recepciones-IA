@@ -151,3 +151,9 @@ Cookie ria_session cambia de SameSite Strict a Lax para permitir el retorno GET 
 - Requiere `CRON_SECRET` en Vercel. Migración aditiva 007.
 - 124 pruebas. Revisado visualmente el panel y la bandeja con datos de ejemplo. **Sin probar con buzón ni API reales.**
 - Pendiente del plan: paso 5 (escritura en Odoo), que necesita base de pruebas y usuario con permisos. También: memoria de equivalencias de códigos de proveedor.
+
+
+## 2026-11-18 — Archivo en Google Drive
+- Conexión guiada desde la tarjeta de Google Drive: el usuario escribe el nombre de la carpeta, autoriza y la app la crea. Guarda albaranes, facturas y fotos de etiqueta por año y mes, con nombre «fecha · proveedor · documento». Enlace a la carpeta desde la app. Detalle en docs/15-drive.md.
+- Permiso mínimo `drive.file`. Migración aditiva 008. Requiere activar Drive API y añadir el permiso en Google Cloud (una vez).
+- 129 pruebas (reglas de nombres). Revisada visualmente la ventana de conexión. **Sin probar con una cuenta real de Google.**

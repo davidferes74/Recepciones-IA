@@ -7,6 +7,7 @@ import {extractionSchema,outputSchema,extractionSystem,extractionTask,type Extra
 import {autoInvoice} from './auto-invoice';
 import {resolveOdoo,fetchOdooData} from './odoo';
 import {DomainError} from './domain';
+import {archivePending} from './drive';
 // Trabajo programado del correo: 1) revisa los buzones activos; 2) si el agente tiene permiso, lee con IA los
 // adjuntos nuevos; 3) si además tiene permiso y la lectura no deja dudas, registra la factura.
 // Cada fase respeta un presupuesto de tiempo y deja el resto para la siguiente ejecución.
@@ -14,13 +15,15 @@ import {DomainError} from './domain';
 export const autoReadLimit=Math.max(1,dailyLimit-4);
 const deadline=(ms:number)=>{const end=Date.now()+ms;return ()=>Date.now()<end;};
 export async function runMailJob(){
- const pool=getPool(),time=deadline(50_000),summary={accounts:0,saved:0,read:0,registered:0,skipped:0,errors:0};
+ const pool=getPool(),time=deadline(50_000),summary={accounts:0,saved:0,read:0,registered:0,skipped:0,errors:0,archived:0};
  // 1) Captura: cada buzón activo, el que lleva más tiempo sin revisar primero.
  const accounts=await pool.query('SELECT id,provider FROM ria_mail_accounts WHERE organization_id=$1 AND paused=false AND (lease_until IS NULL OR lease_until<now()) ORDER BY last_sync ASC NULLS FIRST LIMIT 10',[org()]);
  for(const a of accounts.rows){if(!time())break;try{const r=await (a.provider==='gmail'?captureGmail(a.id):captureMailbox(a.id));summary.accounts++;summary.saved+=r.saved;}catch{summary.errors++;}}
  // 2) y 3) Lectura y registro, solo con permiso expreso en «Autoridad del agente».
  let workspace=await readWorkspace();const authority=workspace.agent;
- if(!authority?.readMail)return summary;
+ // Reintento diario del archivo en Drive: lo que no se pudo subir en su momento.
+ const archive=()=>time()?archivePending(workspace,15000).then(r=>{summary.archived=r.uploaded;}):Promise.resolve();
+ if(!authority?.readMail){await archive();return summary;}
  let suppliers:string[]|null=null;
  const pending=await pool.query("SELECT id,filename,mime,original FROM ria_mail_items WHERE organization_id=$1 AND status='received' AND original IS NOT NULL AND read_state IS NULL ORDER BY created_at ASC LIMIT 10",[org()]);
  for(const item of pending.rows){if(!time())break;
@@ -36,5 +39,5 @@ export async function runMailJob(){
    await pool.query("UPDATE ria_mail_items SET status='registered',detail=$3 WHERE id=$1 AND organization_id=$2",[item.id,org(),'Registrada por el agente; original '+reading.id]);summary.registered++;}
   catch{summary.skipped++;workspace=await readWorkspace();}
  }
- return summary;
+ await archive();return summary;
 }

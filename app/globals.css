@@ -407,3 +407,14 @@ html.intro-skip .welcome:not(.needs-login){display:none}
 .agent-group+.agent-rule{border-top:0}
 .inbox-reading{display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:1px 8px;border-radius:var(--radius-pill);font-size:.72rem;font-weight:600;background:var(--accent-subtle);color:var(--accent-strong);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .inbox-reading.warn{background:var(--warning-bg);color:var(--warning)}.inbox-reading.bad{background:var(--danger-bg);color:var(--danger)}
+
+/* ---------- Google Drive ---------- */
+.drive-card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.drive-steps{margin:0}
+.drive-tree{display:flex;flex-direction:column;gap:6px;border:1px solid var(--border);border-radius:var(--radius-control);padding:12px 14px;background:var(--surface-tint);font-size:.84rem;overflow:hidden}
+.drive-tree span{display:flex;align-items:center;gap:8px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drive-tree svg{color:var(--accent);flex:none}
+.drive-tree .l1{padding-left:20px}.drive-tree .l2{padding-left:40px}
+.drive-tree .l3{padding-left:66px;font-weight:400;color:var(--text-secondary);font-size:.78rem;display:block}
+.drive-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+.wizard .helper svg,.form-stack>.helper svg{vertical-align:-3px;color:var(--success)}
