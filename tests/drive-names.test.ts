@@ -35,3 +35,9 @@ test('extension comes from the real file type; folders are year and month in Spa
  assert.deepEqual(['application/pdf','image/jpeg','image/png','image/webp','text/html'].map(extensionFor),['pdf','jpg','png','webp','bin']);
  assert.deepEqual(monthFolders('2026-11-17'),{year:'2026',month:'11 noviembre',key:'2026-11'});assert.deepEqual(monthFolders('2027-01-02'),{year:'2027',month:'01 enero',key:'2027-01'});
  assert.equal(monthFolders('fecha rara').key,'sin-fecha');assert.equal(monthFolders('2026-13-01').key,'sin-fecha');});
+import {forbiddenKind} from '../lib/drive';
+test('a Google 403 is told apart: Drive API not enabled in the project versus access denied',()=>{
+ assert.equal(forbiddenKind({error:{code:403,message:'Google Drive API has not been used in project 123 before or it is disabled.',errors:[{reason:'accessNotConfigured'}],status:'PERMISSION_DENIED'}}),'api');
+ assert.equal(forbiddenKind({error:{code:403,message:'x',details:[{reason:'SERVICE_DISABLED'}]}}),'api');
+ assert.equal(forbiddenKind({error:{code:403,message:'Insufficient Permission',errors:[{reason:'insufficientPermissions'}]}}),'denied');
+ assert.equal(forbiddenKind(null),'denied');assert.equal(forbiddenKind('no es json'),'denied');});

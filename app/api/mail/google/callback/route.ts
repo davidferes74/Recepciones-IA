@@ -4,8 +4,8 @@ import {z} from 'zod';
 import {authorized} from '@/lib/auth';
 import {getPool,org} from '@/lib/server-store';
 import {seal} from '@/lib/mail-config';
-import {hashState,exchangeCode,gmailGet,googleRedirect} from '@/lib/google-oauth';
-import {connectDrive,driveScope,folderNameSchema} from '@/lib/drive';
+import {hashState,exchangeCode,gmailGet,googleRedirect,OAuthError} from '@/lib/google-oauth';
+import {connectDrive,driveScope,folderNameSchema,DriveError} from '@/lib/drive';
 export const runtime='nodejs';export const maxDuration=60;
 // La misma dirección de retorno sirve para Gmail y para Drive; la finalidad va guardada con el «state».
 function finish(status:string,param='google'){const r=NextResponse.redirect(new URL('/?'+param+'='+status,new URL(googleRedirect).origin));r.headers.set('Cache-Control','no-store');r.headers.set('Referrer-Policy','no-referrer');return r;}
@@ -18,4 +18,7 @@ export async function GET(req:NextRequest){if(!authorized(req))return finish('se
  const secret=seal(JSON.stringify({...tokens,expires_at:Date.now()+tokens.expires_in*1000}),org());
  const config={name:'Facturas Gmail',email,folder:'INBOX',since:new Date().toISOString().slice(0,10),sender:'',subject:''};
  const r=await getPool().query("INSERT INTO ria_mail_accounts(id,organization_id,name,email,config,secret,provider) VALUES($1,$2,$3,$4,$5,$6,'gmail') ON CONFLICT(organization_id,email) DO UPDATE SET secret=EXCLUDED.secret,paused=true,last_error=NULL WHERE ria_mail_accounts.provider='gmail' AND (ria_mail_accounts.lease_until IS NULL OR ria_mail_accounts.lease_until<now()) RETURNING id",[randomUUID(),org(),config.name,email,JSON.stringify(config),secret]);if(!r.rowCount)return finish('conflict');return finish('connected');
- }catch{return finish('failed',param);}}
+ }catch(e){
+  // Motivo concreto para el usuario y para los registros (sin datos privados ni respuestas de Google).
+  const reason=e instanceof OAuthError?e.kind:e instanceof DriveError?e.kind:(e as {code?:string})?.code==='42P01'||(e as {code?:string})?.code==='42703'?'database':'failed';
+  console.error('[google callback]',param,reason,e instanceof Error?e.name:'');return finish(param==='drive'?reason:'failed',param);}}

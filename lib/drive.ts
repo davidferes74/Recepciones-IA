@@ -10,7 +10,9 @@ export const folderUrl=(id:string)=>'https://drive.google.com/drive/folders/'+en
 export const folderNameSchema=z.string().transform(v=>safePart(v)).pipe(z.string().min(1).max(80));
 type Tokens={access_token:string;refresh_token:string;expires_at:number};
 type Config={email?:string;folderId?:string;folderName?:string;folders?:Record<string,string>;lastError?:string|null;lastArchive?:string};
-export class DriveError extends Error{constructor(message:string,public kind:'auth'|'folder'|'other'='other'){super(message);}}
+export class DriveError extends Error{constructor(message:string,public kind:'auth'|'folder'|'api'|'denied'|'other'='other'){super(message);}}
+/** Motivo de un 403 de Google: API de Drive sin activar en el proyecto, o permiso insuficiente. */
+export function forbiddenKind(body:unknown):'api'|'denied'{const e=(body as {error?:{message?:string;status?:string;errors?:{reason?:string}[];details?:{reason?:string}[]}}|null)?.error;const reasons=[...(e?.errors||[]),...(e?.details||[])].map(x=>String(x.reason||'')).join(' ')+' '+String(e?.message||'');return /accessNotConfigured|SERVICE_DISABLED|has not been used|is disabled|it is disabled/i.test(reasons)?'api':'denied';}
 async function row(){const r=await getPool().query("SELECT config,secret FROM ria_integrations WHERE organization_id=$1 AND kind='drive'",[org()]);return r.rows[0] as {config:Config;secret:string|null}|undefined;}
 const saveConfig=(config:Config)=>getPool().query("UPDATE ria_integrations SET config=$2,updated_at=now() WHERE organization_id=$1 AND kind='drive'",[org(),JSON.stringify(config)]);
 export async function driveStatus(){
@@ -24,6 +26,7 @@ async function call(token:string,url:string,init:RequestInit={}){
  let res:Response;try{res=await fetch(url,{...init,headers:{Authorization:'Bearer '+token,...(init.headers||{})},signal:AbortSignal.timeout(25000),cache:'no-store',redirect:'error'});}catch{throw new DriveError('No se pudo conectar con Google Drive.');}
  if(res.status===401)throw new DriveError('Google ha retirado el permiso. Vuelve a conectar Google Drive.','auth');
  if(res.status===404)throw new DriveError('La carpeta ya no existe en Drive.','folder');
+ if(res.status===403){const kind=forbiddenKind(await res.json().catch(()=>null));throw new DriveError(kind==='api'?'La API de Google Drive no está activada en el proyecto de Google Cloud de la app.':'Google no permite a la app usar Drive con esta cuenta.',kind);}
  if(!res.ok)throw new DriveError('Google Drive no pudo completar la operación (HTTP '+res.status+').');
  return res.json() as Promise<Record<string,any>>;
 }
