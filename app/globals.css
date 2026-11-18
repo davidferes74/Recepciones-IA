@@ -418,3 +418,10 @@ html.intro-skip .welcome:not(.needs-login){display:none}
 .drive-tree .l3{padding-left:66px;font-weight:400;color:var(--text-secondary);font-size:.78rem;display:block}
 .drive-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
 .wizard .helper svg,.form-stack>.helper svg{vertical-align:-3px;color:var(--success)}
+
+/* ---------- Ayuda paso a paso (Google Cloud) ---------- */
+.help-steps{margin:0;padding:0;list-style:none;counter-reset:help;display:flex;flex-direction:column;gap:12px}
+.help-steps li{counter-increment:help;position:relative;padding-left:44px;min-height:30px;line-height:1.5}
+.help-steps li::before{content:counter(help);position:absolute;left:0;top:-2px;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:var(--accent-subtle);color:var(--accent-strong);font-family:var(--font-display);font-weight:600}
+.help-steps .button{display:flex;width:fit-content;margin-top:8px}
+.help-url{display:block;margin-top:6px;font-size:.74rem;color:var(--text-muted);overflow-wrap:anywhere;user-select:all}
